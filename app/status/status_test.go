@@ -12,15 +12,8 @@ func TestCheckPortBind_UnboundPort(t *testing.T) {
 	}
 }
 
-func TestCheckLoopback_UnboundPort(t *testing.T) {
-	got := CheckLoopback(59124, "tcp")
-	if got {
-		t.Errorf("CheckLoopback on unbound port: got true, want false")
-	}
-}
-
 func TestRunHealthChecks_EntryCount(t *testing.T) {
-	results := RunHealthChecks(59001, 59002, 59003, 59004, 59005)
+	results := RunHealthChecks([]string{"127.0.0.1"}, 59001, 59002, 59003, 59004, 59005)
 	if len(results) != 6 {
 		t.Errorf("RunHealthChecks returned %d entries, want 6", len(results))
 	}
@@ -35,11 +28,18 @@ func TestRunHealthChecks_EntryCount(t *testing.T) {
 		}
 	}
 
-	// TCP ports should be unbound since we used high random ports.
+	// TCP/TLS ports should be unbound since we used high random ports.
 	// UDP dial always succeeds (connectionless), so skip UDP checks.
 	for i, r := range results {
-		if r.Protocol == "tcp" && r.Bound {
-			t.Errorf("results[%d].Bound = true for TCP port %d, expected false", i, r.Port)
+		if (r.Protocol == "tcp" || r.Protocol == "tls") && r.Bound {
+			t.Errorf("results[%d].Bound = true for %s port %d, expected false", i, r.Protocol, r.Port)
 		}
+	}
+}
+
+func TestRunHealthChecks_MultipleAddrs(t *testing.T) {
+	results := RunHealthChecks([]string{"127.0.0.1", "127.0.0.2"}, 59001, 59002, 59003, 59004, 59005)
+	if len(results) != 12 {
+		t.Errorf("RunHealthChecks returned %d entries, want 12", len(results))
 	}
 }

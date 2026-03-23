@@ -23,60 +23,59 @@ type Server struct {
 	autoRecords *AutoRecordMap
 	upstream    *UpstreamMap
 	queryLog    *RingBuffer
-	listenAddr  string
+	listenAddrs []string
 	port        int
-	udpServer   *mdns.Server
-	tcpServer   *mdns.Server
+	servers     []*mdns.Server
 }
 
 // NewServer creates a new DNS server.
-func NewServer(db *sql.DB, autoRecords *AutoRecordMap, upstream *UpstreamMap, queryLog *RingBuffer, listenAddr string, port int) *Server {
+func NewServer(db *sql.DB, autoRecords *AutoRecordMap, upstream *UpstreamMap, queryLog *RingBuffer, listenAddrs []string, port int) *Server {
 	return &Server{
 		db:          db,
 		autoRecords: autoRecords,
 		upstream:    upstream,
 		queryLog:    queryLog,
-		listenAddr:  listenAddr,
+		listenAddrs: listenAddrs,
 		port:        port,
 	}
 }
 
-// Start starts the DNS server on UDP and TCP.
+// Start starts the DNS server on UDP and TCP for each listen address.
 func (s *Server) Start() error {
-	addr := net.JoinHostPort(s.listenAddr, fmt.Sprintf("%d", s.port))
-
 	mux := mdns.NewServeMux()
 	mux.HandleFunc(".", s.handleQuery)
 
-	s.udpServer = &mdns.Server{Addr: addr, Net: "udp", Handler: mux}
-	s.tcpServer = &mdns.Server{Addr: addr, Net: "tcp", Handler: mux}
+	portStr := fmt.Sprintf("%d", s.port)
+	for _, ip := range s.listenAddrs {
+		addr := net.JoinHostPort(ip, portStr)
 
-	go func() {
-		if err := s.udpServer.ListenAndServe(); err != nil {
-			log.Printf("DNS UDP server error: %v", err)
-			s.udpServer = nil
-		}
-	}()
-	go func() {
-		if err := s.tcpServer.ListenAndServe(); err != nil {
-			log.Printf("DNS TCP server error: %v", err)
-			s.tcpServer = nil
-		}
-	}()
+		udp := &mdns.Server{Addr: addr, Net: "udp", Handler: mux}
+		tcp := &mdns.Server{Addr: addr, Net: "tcp", Handler: mux}
 
-	log.Printf("DNS server listening on %s (UDP/TCP)", addr)
+		s.servers = append(s.servers, udp, tcp)
+
+		go func(a string, srv *mdns.Server) {
+			if err := srv.ListenAndServe(); err != nil {
+				log.Printf("DNS UDP error (%s): %v", a, err)
+			}
+		}(addr, udp)
+		go func(a string, srv *mdns.Server) {
+			if err := srv.ListenAndServe(); err != nil {
+				log.Printf("DNS TCP error (%s): %v", a, err)
+			}
+		}(addr, tcp)
+
+		log.Printf("DNS server listening on %s (UDP/TCP)", addr)
+	}
 	return nil
 }
 
-// Stop shuts down the DNS server.
+// Stop shuts down all DNS server instances.
 func (s *Server) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if s.udpServer != nil {
-		s.udpServer.Shutdown(ctx)
-	}
-	if s.tcpServer != nil {
-		s.tcpServer.Shutdown(ctx)
+	for _, srv := range s.servers {
+		srv.Shutdown(ctx)
 	}
 }
 

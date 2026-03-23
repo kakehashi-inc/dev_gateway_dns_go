@@ -33,8 +33,9 @@ type Server struct {
 	certManager  *cert.Manager
 	autoRecords  *dns.AutoRecordMap
 	queryLog     *dns.RingBuffer
-	httpServer   *http.Server
+	servers      []*http.Server
 	frontendFS   fs.FS
+	listenAddrs  []string
 	startedAt    time.Time
 	version      string
 	ctx          context.Context
@@ -51,6 +52,7 @@ func NewServer(
 	autoRecords *dns.AutoRecordMap,
 	queryLog *dns.RingBuffer,
 	version string,
+	listenAddrs []string,
 	frontendFS fs.FS,
 ) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,6 +66,7 @@ func NewServer(
 		queryLog:     queryLog,
 		startedAt:    time.Now(),
 		version:      version,
+		listenAddrs:  listenAddrs,
 		frontendFS:   frontendFS,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -127,30 +130,33 @@ func (s *Server) Start() error {
 		})
 	}
 
-	addr := fmt.Sprintf("%s:%d", "0.0.0.0", s.config.AdminPort)
-	s.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: corsMiddleware(mux),
-	}
-
-	go func() {
-		log.Printf("Admin API listening on %s", addr)
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Admin API error: %v", err)
-			s.httpServer = nil
+	handler := corsMiddleware(mux)
+	for _, ip := range s.listenAddrs {
+		addr := fmt.Sprintf("%s:%d", ip, s.config.AdminPort)
+		srv := &http.Server{
+			Addr:    addr,
+			Handler: handler,
 		}
-	}()
+		s.servers = append(s.servers, srv)
+
+		go func(a string, sv *http.Server) {
+			log.Printf("Admin API listening on %s", a)
+			if err := sv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("Admin API error (%s): %v", a, err)
+			}
+		}(addr, srv)
+	}
 
 	return nil
 }
 
-// Stop shuts down the admin API server.
+// Stop shuts down all admin API server instances.
 func (s *Server) Stop() {
 	s.cancel()
-	if s.httpServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		s.httpServer.Shutdown(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, srv := range s.servers {
+		srv.Shutdown(ctx)
 	}
 }
 
@@ -682,7 +688,7 @@ func (s *Server) handleStatusHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results := status.RunHealthChecks(
-		s.config.HTTPPort, s.config.HTTPSPort, s.config.DNSPort,
+		s.listenAddrs, s.config.HTTPPort, s.config.HTTPSPort, s.config.DNSPort,
 		s.config.ProxyPort, s.config.AdminPort,
 	)
 	writeJSON(w, http.StatusOK, results)

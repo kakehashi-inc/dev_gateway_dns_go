@@ -148,12 +148,12 @@ func newTestEnv(t *testing.T) *testEnv {
 	nopLogAccess := func(_ models.AccessLog) {}
 	nopResolveIP := func() string { return "127.0.0.1" }
 
-	rp := proxy.NewReverseProxy(db, "127.0.0.1", config.HTTPPort, config.HTTPSPort,
+	rp := proxy.NewReverseProxy(db, []string{"127.0.0.1"}, config.HTTPPort, config.HTTPSPort,
 		certMgr.GetCertificate, nopLogAccess, nopResolveIP)
-	fp := proxy.NewForwardProxy("127.0.0.1", config.ProxyPort,
+	fp := proxy.NewForwardProxy([]string{"127.0.0.1"}, config.ProxyPort,
 		certMgr.GetCertificate, nopLogAccess, nopResolveIP)
 
-	srv := NewServer(db, config, rp, fp, certMgr, autoRecords, queryLog, "test-0.0.1", nil)
+	srv := NewServer(db, config, rp, fp, certMgr, autoRecords, queryLog, "test-0.0.1", []string{"127.0.0.1"}, nil)
 	if err := srv.Start(); err != nil {
 		t.Fatalf("failed to start API server: %v", err)
 	}

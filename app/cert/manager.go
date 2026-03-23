@@ -44,15 +44,30 @@ func (m *Manager) Init() error {
 		Scan(&certPEM, &keyPEM, &expiresAt)
 
 	if err == nil && time.Now().Before(expiresAt) {
-		return m.loadCA(certPEM, keyPEM)
+		if err := m.loadCA(certPEM, keyPEM); err != nil {
+			return err
+		}
+	} else {
+		if err := m.generateAndSaveCA(); err != nil {
+			return err
+		}
 	}
 
-	return m.generateAndSaveCA()
+	// Generate a certificate for health checks (not saved to DB, cache only)
+	if _, err := m.generateHealthCheckCert(); err != nil {
+		log.Printf("Warning: failed to generate health check certificate: %v", err)
+	}
+
+	return nil
 }
 
 // GetCertificate returns a TLS certificate for the given hostname.
 // It loads from cache, then DB, then generates a new one.
 func (m *Manager) GetCertificate(hostname string) (*tls.Certificate, error) {
+	if hostname == "" {
+		return nil, fmt.Errorf("empty hostname")
+	}
+
 	m.mu.RLock()
 	if cert, ok := m.cache[hostname]; ok {
 		m.mu.RUnlock()
@@ -109,6 +124,37 @@ func (m *Manager) RegenerateHostCert(hostname string) (*tls.Certificate, error) 
 	}
 
 	return m.loadOrGenerateHostCert(hostname)
+}
+
+// RenewExpiredCerts checks all host certificates and regenerates any that have expired.
+func (m *Manager) RenewExpiredCerts() {
+	rows, err := m.db.Query("SELECT hostname, expires_at FROM host_certificates")
+	if err != nil {
+		log.Printf("Failed to query host certificates for renewal: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	now := time.Now()
+	var expired []string
+	for rows.Next() {
+		var hostname string
+		var expiresAt time.Time
+		if err := rows.Scan(&hostname, &expiresAt); err != nil {
+			continue
+		}
+		if now.After(expiresAt) {
+			expired = append(expired, hostname)
+		}
+	}
+
+	for _, hostname := range expired {
+		if _, err := m.RegenerateHostCert(hostname); err != nil {
+			log.Printf("Failed to renew certificate for %s: %v", hostname, err)
+		} else {
+			log.Printf("Renewed expired certificate for %s", hostname)
+		}
+	}
 }
 
 // ListCertificates returns all host certificates from the database.
@@ -223,6 +269,53 @@ func (m *Manager) generateAndSaveCA() error {
 	m.caKey = key
 	log.Println("New CA certificate generated and saved")
 	return nil
+}
+
+// generateHealthCheckCert creates a self-signed certificate for health check TLS connections.
+// It is stored in cache only (not persisted to DB).
+func (m *Manager) generateHealthCheckCert() (*tls.Certificate, error) {
+	const hostname = "localhost"
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	template := &x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject:      pkix.Name{CommonName: hostname},
+		DNSNames:     []string{hostname},
+		NotBefore:    now,
+		NotAfter:     now.Add(10 * 365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, m.caCert, &key.PublicKey, m.caKey)
+	if err != nil {
+		return nil, err
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return nil, err
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	m.cache[hostname] = &tlsCert
+	return &tlsCert, nil
 }
 
 func (m *Manager) loadOrGenerateHostCert(hostname string) (*tls.Certificate, error) {

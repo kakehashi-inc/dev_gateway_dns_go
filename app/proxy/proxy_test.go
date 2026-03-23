@@ -218,7 +218,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 }
 
 func newTestReverseProxy(db *sql.DB) *ReverseProxy {
-	return NewReverseProxy(db, "127.0.0.1", 80, 443,
+	return NewReverseProxy(db, []string{"127.0.0.1"}, 80, 443,
 		nil,
 		nil,
 		func() string { return "127.0.0.1" },
@@ -355,7 +355,7 @@ func TestReverseProxy_RemoveRule_NonExistent(t *testing.T) {
 // --- ForwardProxy.SetRules / UpdateRule / RemoveRule tests ---
 
 func newTestForwardProxy() *ForwardProxy {
-	return NewForwardProxy("127.0.0.1", 8888,
+	return NewForwardProxy([]string{"127.0.0.1"}, 8888,
 		nil,
 		nil,
 		func() string { return "127.0.0.1" },

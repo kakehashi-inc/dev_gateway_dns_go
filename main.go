@@ -112,6 +112,9 @@ func runServe(cmd *cli.Command) {
 		log.Fatalf("Failed to initialize certificate manager: %v", err)
 	}
 
+	// Renew expired host certificates
+	certManager.RenewExpiredCerts()
+
 	// Access logger
 	accessLogger := modules.NewAccessLogger(db)
 
@@ -126,16 +129,18 @@ func runServe(cmd *cli.Command) {
 		log.Printf("Warning: startup database vacuum failed: %v", err)
 	}
 
-	// Determine listen address (use first one for binding)
-	listenAddr := "0.0.0.0"
-	if len(config.ListenAddresses) > 0 && config.ListenAddresses[0] != "0.0.0.0" {
-		listenAddr = config.ListenAddresses[0]
+	// Resolve listen addresses
+	listenAddrs := config.ListenAddresses
+	if len(listenAddrs) == 0 {
+		listenAddrs = []string{"0.0.0.0"}
 	}
 
 	// Resolve auto IP function
 	resolveAutoIP := func() string {
-		if listenAddr != "0.0.0.0" {
-			return listenAddr
+		for _, addr := range listenAddrs {
+			if addr != "0.0.0.0" && addr != "127.0.0.1" {
+				return addr
+			}
 		}
 		ips, err := modules.GetAllNICIPs()
 		if err != nil || len(ips) == 0 {
@@ -146,7 +151,7 @@ func runServe(cmd *cli.Command) {
 
 	// Reverse proxy
 	reverseProxy := proxy.NewReverseProxy(
-		db, listenAddr, config.HTTPPort, config.HTTPSPort,
+		db, listenAddrs, config.HTTPPort, config.HTTPSPort,
 		certManager.GetCertificate, accessLogger.Log, resolveAutoIP,
 	)
 	if err := reverseProxy.LoadRules(); err != nil {
@@ -155,7 +160,7 @@ func runServe(cmd *cli.Command) {
 
 	// Forward proxy
 	forwardProxy := proxy.NewForwardProxy(
-		listenAddr, config.ProxyPort,
+		listenAddrs, config.ProxyPort,
 		certManager.GetCertificate, accessLogger.Log, resolveAutoIP,
 	)
 
@@ -166,16 +171,15 @@ func runServe(cmd *cli.Command) {
 	syncForwardProxyRules(db, forwardProxy)
 
 	// DNS server
-	dnsServer := dns.NewServer(db, autoRecords, upstreamMap, queryLog, listenAddr, config.DNSPort)
+	dnsServer := dns.NewServer(db, autoRecords, upstreamMap, queryLog, listenAddrs, config.DNSPort)
 
 	// API server
-	// Prepare embedded frontend filesystem
 	feFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
 		log.Printf("Warning: failed to load frontend assets: %v", err)
 	}
 
-	apiServer := api.NewServer(db, config, reverseProxy, forwardProxy, certManager, autoRecords, queryLog, version, feFS)
+	apiServer := api.NewServer(db, config, reverseProxy, forwardProxy, certManager, autoRecords, queryLog, version, listenAddrs, feFS)
 
 	// Start all servers
 	if err := dnsServer.Start(); err != nil {
@@ -195,23 +199,28 @@ func runServe(cmd *cli.Command) {
 	bgStopCh := make(chan struct{})
 	var bgWg sync.WaitGroup
 
-	// Periodic health check: first run after 3 seconds, then every 1 hour
+	// Health check: first run after 5 seconds, then every 1 hour
 	bgWg.Add(1)
 	go func() {
 		defer bgWg.Done()
+		showAddr := len(listenAddrs) > 1 || (len(listenAddrs) == 1 && listenAddrs[0] != "0.0.0.0")
 		runHealthCheck := func() {
-			results := status.RunHealthChecks(config.HTTPPort, config.HTTPSPort, config.DNSPort, config.ProxyPort, config.AdminPort)
+			results := status.RunHealthChecks(listenAddrs, config.HTTPPort, config.HTTPSPort, config.DNSPort, config.ProxyPort, config.AdminPort)
 			for _, r := range results {
+				label := fmt.Sprintf(":%d/%s", r.Port, r.Protocol)
+				if showAddr {
+					label = fmt.Sprintf("%s:%d/%s", r.Address, r.Port, r.Protocol)
+				}
 				if r.Bound {
-					log.Printf("  [OK] %s (:%d/%s)", r.Service, r.Port, r.Protocol)
+					log.Printf("  [OK] %s (%s)", r.Service, label)
 				} else {
-					log.Printf("  [WARN] %s (:%d/%s) - not responding", r.Service, r.Port, r.Protocol)
+					log.Printf("  [WARN] %s (%s) - not responding", r.Service, label)
 				}
 			}
 		}
 
-		// Initial delay
-		delay := time.NewTimer(3 * time.Second)
+		// Initial delay, then show startup complete and run first health check
+		delay := time.NewTimer(5 * time.Second)
 		select {
 		case <-delay.C:
 			log.Println("Running health checks...")
@@ -235,7 +244,7 @@ func runServe(cmd *cli.Command) {
 		}
 	}()
 
-	// Daily access log cleanup at midnight
+	// Daily maintenance at midnight
 	bgWg.Add(1)
 	go func() {
 		defer bgWg.Done()
@@ -245,18 +254,17 @@ func runServe(cmd *cli.Command) {
 			timer := time.NewTimer(time.Until(next))
 			select {
 			case <-timer.C:
+				log.Println("Running daily maintenance...")
 				if err := accessLogger.Cleanup(config.AccessLogRetentionDays); err != nil {
-					log.Printf("Daily access log cleanup failed: %v", err)
+					log.Printf("  Access log cleanup failed: %v", err)
 				}
+				certManager.RenewExpiredCerts()
 			case <-bgStopCh:
 				timer.Stop()
 				return
 			}
 		}
 	}()
-
-	log.Printf("DevGatewayDNS %s is running", version)
-	log.Printf("Admin UI: http://%s:%d", listenAddr, config.AdminPort)
 
 	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)

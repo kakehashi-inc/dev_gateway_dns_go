@@ -20,8 +20,8 @@ import (
 type ForwardProxy struct {
 	mu            sync.RWMutex
 	rules         map[string]*models.ProxyRule
-	server        *http.Server
-	listenAddr    string
+	servers       []*http.Server
+	listenAddrs   []string
 	port          int
 	getCert       func(hostname string) (*tls.Certificate, error)
 	logAccess     func(entry models.AccessLog)
@@ -29,14 +29,14 @@ type ForwardProxy struct {
 }
 
 // NewForwardProxy creates a new forward proxy.
-func NewForwardProxy(listenAddr string, port int,
+func NewForwardProxy(listenAddrs []string, port int,
 	getCert func(string) (*tls.Certificate, error),
 	logAccess func(models.AccessLog),
 	resolveAutoIP func() string,
 ) *ForwardProxy {
 	return &ForwardProxy{
 		rules:         make(map[string]*models.ProxyRule),
-		listenAddr:    listenAddr,
+		listenAddrs:   listenAddrs,
 		port:          port,
 		getCert:       getCert,
 		logAccess:     logAccess,
@@ -69,31 +69,32 @@ func (fp *ForwardProxy) RemoveRule(hostname string) {
 	delete(fp.rules, hostname)
 }
 
-// Start begins listening for forward proxy connections.
+// Start begins listening for forward proxy connections on each listen address.
 func (fp *ForwardProxy) Start() error {
-	addr := fmt.Sprintf("%s:%d", fp.listenAddr, fp.port)
-	fp.server = &http.Server{
-		Addr:    addr,
-		Handler: fp,
-	}
-
-	go func() {
-		log.Printf("Forward proxy listening on %s", addr)
-		if err := fp.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Forward proxy error: %v", err)
-			fp.server = nil
+	for _, ip := range fp.listenAddrs {
+		addr := fmt.Sprintf("%s:%d", ip, fp.port)
+		srv := &http.Server{
+			Addr:    addr,
+			Handler: fp,
 		}
-	}()
+		fp.servers = append(fp.servers, srv)
 
+		go func(a string, s *http.Server) {
+			log.Printf("Forward proxy listening on %s", a)
+			if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("Forward proxy error (%s): %v", a, err)
+			}
+		}(addr, srv)
+	}
 	return nil
 }
 
-// Stop shuts down the forward proxy.
+// Stop shuts down all forward proxy instances.
 func (fp *ForwardProxy) Stop() {
-	if fp.server != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		fp.server.Shutdown(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, srv := range fp.servers {
+		srv.Shutdown(ctx)
 	}
 }
 

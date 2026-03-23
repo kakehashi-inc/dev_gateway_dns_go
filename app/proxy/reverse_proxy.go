@@ -22,9 +22,8 @@ type ReverseProxy struct {
 	db            *sql.DB
 	mu            sync.RWMutex
 	rules         map[string]*models.ProxyRule // hostname -> rule
-	httpServer    *http.Server
-	httpsServer   *http.Server
-	listenAddr    string
+	servers       []*http.Server
+	listenAddrs   []string
 	httpPort      int
 	httpsPort     int
 	getCert       func(hostname string) (*tls.Certificate, error)
@@ -33,7 +32,7 @@ type ReverseProxy struct {
 }
 
 // NewReverseProxy creates a new ReverseProxy.
-func NewReverseProxy(db *sql.DB, listenAddr string, httpPort, httpsPort int,
+func NewReverseProxy(db *sql.DB, listenAddrs []string, httpPort, httpsPort int,
 	getCert func(string) (*tls.Certificate, error),
 	logAccess func(models.AccessLog),
 	resolveAutoIP func() string,
@@ -41,7 +40,7 @@ func NewReverseProxy(db *sql.DB, listenAddr string, httpPort, httpsPort int,
 	return &ReverseProxy{
 		db:            db,
 		rules:         make(map[string]*models.ProxyRule),
-		listenAddr:    listenAddr,
+		listenAddrs:   listenAddrs,
 		httpPort:      httpPort,
 		httpsPort:     httpsPort,
 		getCert:       getCert,
@@ -95,58 +94,50 @@ func (rp *ReverseProxy) RemoveRule(hostname string) {
 
 // Start starts the HTTP and HTTPS proxy servers.
 func (rp *ReverseProxy) Start() error {
-	httpAddr := fmt.Sprintf("%s:%d", rp.listenAddr, rp.httpPort)
-	httpsAddr := fmt.Sprintf("%s:%d", rp.listenAddr, rp.httpsPort)
-
-	rp.httpServer = &http.Server{
-		Addr:    httpAddr,
-		Handler: rp.proxyHandler("reverse"),
-	}
-
-	rp.httpsServer = &http.Server{
-		Addr:    httpsAddr,
-		Handler: rp.proxyHandler("reverse"),
-		TLSConfig: &tls.Config{
-			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				return rp.getCert(info.ServerName)
-			},
+	handler := rp.proxyHandler("reverse")
+	tlsConfig := &tls.Config{
+		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return rp.getCert(info.ServerName)
 		},
 	}
 
-	go func() {
-		log.Printf("HTTP reverse proxy listening on %s", httpAddr)
-		if err := rp.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP proxy error: %v", err)
-			rp.httpServer = nil
-		}
-	}()
+	for _, ip := range rp.listenAddrs {
+		httpAddr := fmt.Sprintf("%s:%d", ip, rp.httpPort)
+		httpsAddr := fmt.Sprintf("%s:%d", ip, rp.httpsPort)
 
-	go func() {
-		ln, err := tls.Listen("tcp", httpsAddr, rp.httpsServer.TLSConfig)
-		if err != nil {
-			log.Printf("HTTPS proxy listen error: %v", err)
-			rp.httpsServer = nil
-			return
-		}
-		log.Printf("HTTPS reverse proxy listening on %s", httpsAddr)
-		if err := rp.httpsServer.Serve(ln); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTPS proxy error: %v", err)
-			rp.httpsServer = nil
-		}
-	}()
+		httpSrv := &http.Server{Addr: httpAddr, Handler: handler}
+		httpsSrv := &http.Server{Addr: httpsAddr, Handler: handler, TLSConfig: tlsConfig}
 
+		rp.servers = append(rp.servers, httpSrv, httpsSrv)
+
+		go func(addr string, srv *http.Server) {
+			log.Printf("HTTP reverse proxy listening on %s", addr)
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTP proxy error (%s): %v", addr, err)
+			}
+		}(httpAddr, httpSrv)
+
+		go func(addr string, srv *http.Server, tc *tls.Config) {
+			ln, err := tls.Listen("tcp", addr, tc)
+			if err != nil {
+				log.Printf("HTTPS proxy listen error (%s): %v", addr, err)
+				return
+			}
+			log.Printf("HTTPS reverse proxy listening on %s", addr)
+			if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Printf("HTTPS proxy error (%s): %v", addr, err)
+			}
+		}(httpsAddr, httpsSrv, tlsConfig)
+	}
 	return nil
 }
 
-// Stop shuts down both proxy servers.
+// Stop shuts down all proxy server instances.
 func (rp *ReverseProxy) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if rp.httpServer != nil {
-		rp.httpServer.Shutdown(ctx)
-	}
-	if rp.httpsServer != nil {
-		rp.httpsServer.Shutdown(ctx)
+	for _, srv := range rp.servers {
+		srv.Shutdown(ctx)
 	}
 }
 
