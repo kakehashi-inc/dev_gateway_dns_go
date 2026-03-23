@@ -24,21 +24,22 @@ export default function App() {
     document.documentElement.lang = i18n.language;
   }, [i18n.language]);
 
-  const toggleLang = () => {
-    i18n.changeLanguage(i18n.language === "ja" ? "en" : "ja");
-  };
+  const langCodes = ["ja", "en"];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <header className="bg-white dark:bg-gray-800 shadow">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold">DevGatewayDNS</h1>
-          <button
-            onClick={toggleLang}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          <select
+            value={i18n.language}
+            onChange={(e) => i18n.changeLanguage(e.target.value)}
+            className="px-3 py-1 text-sm border rounded bg-white dark:bg-gray-700 dark:border-gray-600"
           >
-            {i18n.language === "ja" ? "EN" : "JA"}
-          </button>
+            {langCodes.map((code) => (
+              <option key={code} value={code}>{t(`lang.${code}`)}</option>
+            ))}
+          </select>
         </div>
       </header>
       <div className="max-w-7xl mx-auto flex">

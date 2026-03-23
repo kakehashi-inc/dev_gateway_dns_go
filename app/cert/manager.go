@@ -126,8 +126,23 @@ func (m *Manager) RegenerateHostCert(hostname string) (*tls.Certificate, error) 
 	return m.loadOrGenerateHostCert(hostname)
 }
 
-// RenewExpiredCerts checks all host certificates and regenerates any that have expired.
+// RenewExpiredCerts checks the CA certificate and all host certificates,
+// and regenerates any that have expired.
 func (m *Manager) RenewExpiredCerts() {
+	// Check CA certificate
+	var caExpiresAt time.Time
+	err := m.db.QueryRow("SELECT expires_at FROM ca_certificate WHERE id = 1").Scan(&caExpiresAt)
+	if err == nil && time.Now().After(caExpiresAt) {
+		m.mu.Lock()
+		if err := m.generateAndSaveCA(); err != nil {
+			log.Printf("Failed to renew CA certificate: %v", err)
+		} else {
+			log.Println("Renewed expired CA certificate")
+		}
+		m.mu.Unlock()
+	}
+
+	// Check host certificates
 	rows, err := m.db.Query("SELECT hostname, expires_at FROM host_certificates")
 	if err != nil {
 		log.Printf("Failed to query host certificates for renewal: %v", err)

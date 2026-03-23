@@ -68,7 +68,10 @@
   "settings.accessLogRetentionDays": "Access Log Retention (days)",
   "settings.logLevel": "Log Level",
   "settings.save": "Save",
-  "settings.saved": "Settings saved. Port changes require restart.",
+  "settings.saved": "Settings saved.",
+  "settings.restartRequired": "Port or listen address has been changed. Restart required to apply.",
+  "lang.ja": "Japanese",
+  "lang.en": "English",
   "common.loading": "Loading...",
   "common.error": "Error"
 }

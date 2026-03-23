@@ -68,7 +68,10 @@
   "settings.accessLogRetentionDays": "アクセスログ保持日数",
   "settings.logLevel": "ログレベル",
   "settings.save": "保存",
-  "settings.saved": "設定を保存しました。ポート変更は再起動が必要です。",
+  "settings.saved": "設定を保存しました。",
+  "settings.restartRequired": "ポートまたはLISTENアドレスが変更されています。再起動後に反映されます。",
+  "lang.ja": "日本語",
+  "lang.en": "英語",
   "common.loading": "読み込み中...",
   "common.error": "エラー"
 }

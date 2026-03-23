@@ -15,9 +15,12 @@ interface Settings {
   access_log_retention_days: number;
 }
 
+const portKeys: (keyof Settings)[] = ["http_port", "https_port", "dns_port", "proxy_port", "admin_port"];
+
 export default function SystemSettings() {
   const { t } = useTranslation();
   const { data, refetch } = useApi<Settings>("/settings");
+  const { data: running } = useApi<Settings>("/settings/running");
   const [form, setForm] = useState<Settings | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -29,15 +32,27 @@ export default function SystemSettings() {
     if (!form) return;
     await apiPut("/settings", form);
     setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setTimeout(() => setSaved(false), 5000);
     refetch();
   };
+
+  const needsRestart =
+    data &&
+    running &&
+    (portKeys.some((k) => data[k] !== running[k]) ||
+      data.listen_addresses.join(",") !== running.listen_addresses.join(","));
 
   if (!form) return <p>{t("common.loading")}</p>;
 
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">{t("settings.title")}</h2>
+
+      {needsRestart && (
+        <div className="bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded p-3 text-sm max-w-lg">
+          {t("settings.restartRequired")}
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-3 max-w-lg">
         {(

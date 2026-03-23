@@ -1,4 +1,3 @@
-import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useApi } from "../hooks/useApi";
 
@@ -13,21 +12,13 @@ interface NIC {
 }
 interface PortHealth {
   service: string;
+  address: string;
   port: number;
   protocol: string;
   bound: boolean;
-  loopback: boolean;
 }
-interface AccessLog {
-  timestamp: string;
-  source: string;
-  client_ip: string;
-  hostname: string;
-  method: string;
-  path: string;
-  status_code: number;
-  response_time_ms: number;
-  backend: string;
+function Icon({ name, className }: { name: string; className?: string }) {
+  return <span className={`material-icons text-base align-middle ${className ?? ""}`}>{name}</span>;
 }
 
 export default function Dashboard() {
@@ -35,23 +26,18 @@ export default function Dashboard() {
   const overview = useApi<Overview>("/status/overview");
   const nics = useApi<NIC[]>("/status/interfaces");
   const health = useApi<PortHealth[]>("/status/health");
-  const [recentLogs, setRecentLogs] = useState<AccessLog[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  // Group health results by service
+  const healthByService = (() => {
+    const map = new Map<string, PortHealth[]>();
+    health.data?.forEach((h) => {
+      const list = map.get(h.service) ?? [];
+      list.push(h);
+      map.set(h.service, list);
+    });
+    return map;
+  })();
 
-  useEffect(() => {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/api/v1/status/live`);
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (Array.isArray(data)) setRecentLogs(data);
-      } catch {
-        /* ignore */
-      }
-    };
-    wsRef.current = ws;
-    return () => ws.close();
-  }, []);
+  const listenAddrs = new Set(health.data?.map((h) => h.address) ?? []);
 
   return (
     <div className="space-y-6">
@@ -86,13 +72,25 @@ export default function Dashboard() {
         </div>
         <table className="w-full text-sm">
           <tbody>
-            {health.data?.map((h, i) => (
-              <tr key={i} className="border-t dark:border-gray-700">
-                <td className="py-1">{h.service}</td>
-                <td>
-                  :{h.port}/{h.protocol}
+            {[...healthByService.entries()].map(([service, items]) => (
+              <tr key={service} className="border-t dark:border-gray-700">
+                <td className="py-1 font-semibold w-40">{service}</td>
+                <td className="py-1">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {items.map((h, i) => (
+                      <span key={i} className="inline-flex items-center gap-1">
+                        {h.bound ? (
+                          <Icon name="check_circle" className="text-green-500" />
+                        ) : (
+                          <Icon name="error" className="text-red-500" />
+                        )}
+                        <span className="font-mono text-xs">
+                          {h.address}:{h.port}/{h.protocol}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
                 </td>
-                <td>{h.bound ? "\u2705" : "\u274C"}</td>
               </tr>
             ))}
           </tbody>
@@ -103,47 +101,22 @@ export default function Dashboard() {
         <h3 className="font-semibold mb-2">{t("dashboard.interfaces")}</h3>
         <table className="w-full text-sm">
           <tbody>
-            {nics.data?.map((nic) => (
-              <tr key={nic.name} className="border-t dark:border-gray-700">
-                <td className="py-1 font-mono">{nic.name}</td>
-                <td>{nic.ips.join(", ")}</td>
-              </tr>
-            ))}
+            {nics.data?.map((nic) => {
+              const listening = nic.ips.some((ip) => listenAddrs.has(ip));
+              return (
+                <tr key={nic.name} className="border-t dark:border-gray-700">
+                  <td className="py-1 w-8">
+                    {listening && <Icon name="hearing" className="text-green-500" />}
+                  </td>
+                  <td className="py-1 font-mono">{nic.name}</td>
+                  <td>{nic.ips.join(", ")}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded p-4 shadow">
-        <h3 className="font-semibold mb-2">{t("dashboard.recentLogs")}</h3>
-        <div className="max-h-48 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left border-b dark:border-gray-700">
-                <th className="p-1">Time</th>
-                <th className="p-1">Source</th>
-                <th className="p-1">Host</th>
-                <th className="p-1">Method</th>
-                <th className="p-1">Path</th>
-                <th className="p-1">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentLogs.slice(0, 10).map((log, i) => (
-                <tr key={i} className="border-t dark:border-gray-700">
-                  <td className="p-1 font-mono">{new Date(log.timestamp).toLocaleString()}</td>
-                  <td className="p-1">{log.source}</td>
-                  <td className="p-1 font-mono">{log.hostname}</td>
-                  <td className="p-1">{log.method}</td>
-                  <td className="p-1 font-mono truncate max-w-24">{log.path}</td>
-                  <td className={`p-1 ${log.status_code >= 400 ? "text-red-600" : "text-green-600"}`}>
-                    {log.status_code}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }

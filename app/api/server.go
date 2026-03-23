@@ -104,28 +104,17 @@ func (s *Server) Start() error {
 
 	// Settings
 	mux.HandleFunc("/api/v1/settings", s.handleSettings)
+	mux.HandleFunc("/api/v1/settings/running", s.handleRunningSettings)
 
 	// Frontend static files
 	if s.frontendFS != nil {
 		fileServer := http.FileServer(http.FS(s.frontendFS))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// Serve API and /ca routes normally (already handled above)
-			// For SPA: try serving the file, fall back to index.html
-			path := r.URL.Path
-			if path == "/" || path == "" {
-				r.URL.Path = "/index.html"
-				fileServer.ServeHTTP(w, r)
+			path := strings.TrimPrefix(r.URL.Path, "/")
+			if path == "" || !s.hasFile(path) {
+				s.serveIndex(w, r)
 				return
 			}
-			// Try to open the file
-			f, err := s.frontendFS.Open(strings.TrimPrefix(path, "/"))
-			if err != nil {
-				// File not found: serve index.html for SPA routing
-				r.URL.Path = "/index.html"
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-			f.Close()
 			fileServer.ServeHTTP(w, r)
 		})
 	}
@@ -158,6 +147,29 @@ func (s *Server) Stop() {
 	for _, srv := range s.servers {
 		srv.Shutdown(ctx)
 	}
+}
+
+func (s *Server) hasFile(path string) bool {
+	f, err := s.frontendFS.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return !stat.IsDir()
+}
+
+func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request) {
+	content, err := fs.ReadFile(s.frontendFS, "index.html")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(content)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -783,6 +795,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (s *Server) handleRunningSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.config)
 }
 
 // syncAutoRecords rebuilds auto records from DB.

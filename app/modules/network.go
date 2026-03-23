@@ -20,7 +20,7 @@ func DetectNICs() ([]NICInfo, error) {
 
 	var nics []NICInfo
 	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+		if iface.Flags&net.FlagUp == 0 {
 			continue
 		}
 		addrs, err := iface.Addrs()
@@ -46,13 +46,28 @@ func DetectNICs() ([]NICInfo, error) {
 
 // GetAllNICIPs returns all IPv4 addresses from active non-loopback interfaces.
 func GetAllNICIPs() ([]string, error) {
-	nics, err := DetectNICs()
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
 	}
 	var ips []string
-	for _, nic := range nics {
-		ips = append(ips, nic.IPs...)
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if ipNet.IP.To4() != nil {
+				ips = append(ips, ipNet.IP.String())
+			}
+		}
 	}
 	return ips, nil
 }

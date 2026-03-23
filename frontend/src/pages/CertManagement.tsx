@@ -12,7 +12,6 @@ export default function CertManagement() {
   const { t } = useTranslation();
   const { data: certs, refetch } = useApi<CertInfo[]>("/certs");
   const [showQR, setShowQR] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
 
   const regenerate = async (hostname: string) => {
     await apiPost(`/certs/${hostname}/regenerate`, {});
@@ -50,34 +49,27 @@ export default function CertManagement() {
           >
             {t("certs.qrcode")}
           </button>
-          <button
-            onClick={() => setShowGuide(!showGuide)}
-            className="px-3 py-1 border rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            {t("certs.installGuide")}
-          </button>
         </div>
         {showQR && (
           <div className="mt-2">
             <img src="/api/v1/certs/ca/qrcode" alt="CA QR Code" className="w-64 h-64" />
           </div>
         )}
-        {showGuide && (
-          <div className="mt-2 space-y-2 text-sm">
-            <p>
-              <strong>iOS:</strong> {t("certs.guide.ios")}
-            </p>
-            <p>
-              <strong>Android:</strong> {t("certs.guide.android")}
-            </p>
-            <p>
-              <strong>Windows:</strong> {t("certs.guide.windows")}
-            </p>
-            <p>
-              <strong>macOS:</strong> {t("certs.guide.macos")}
-            </p>
-          </div>
-        )}
+        <div className="mt-2 space-y-2 text-sm">
+          <h4 className="font-semibold">{t("certs.installGuide")}</h4>
+          <p>
+            <strong>iOS:</strong> {t("certs.guide.ios")}
+          </p>
+          <p>
+            <strong>Android:</strong> {t("certs.guide.android")}
+          </p>
+          <p>
+            <strong>Windows:</strong> {t("certs.guide.windows")}
+          </p>
+          <p>
+            <strong>macOS:</strong> {t("certs.guide.macos")}
+          </p>
+        </div>
       </div>
 
       <table className="w-full text-sm bg-white dark:bg-gray-800 rounded shadow">
