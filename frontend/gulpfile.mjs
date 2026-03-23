@@ -6,7 +6,7 @@ const FONT_DEST = "public/fonts/material-icons";
 
 function setupFonts() {
   mkdirSync(FONT_DEST, { recursive: true });
-  return gulp.src(`${FONT_PKG}/*.woff2`).pipe(gulp.dest(FONT_DEST));
+  return gulp.src(`${FONT_PKG}/*.woff2`, { encoding: false }).pipe(gulp.dest(FONT_DEST));
 }
 
 export { setupFonts as "setup-fonts" };
