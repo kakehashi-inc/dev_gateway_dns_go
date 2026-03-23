@@ -43,12 +43,26 @@ func OpenDB(dbPath string, migrationsFS MigrationFS) (*sql.DB, error) {
 			db.Close()
 			return nil, fmt.Errorf("failed to set goose dialect: %w", err)
 		}
+		beforeVer, _ := goose.GetDBVersion(db)
+		goose.SetVerbose(false)
 		if err := goose.Up(db, migrationsFS.Dir); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("failed to run migrations: %w", err)
 		}
-		log.Println("Database migrations applied successfully")
+		afterVer, _ := goose.GetDBVersion(db)
+		if afterVer > beforeVer {
+			log.Printf("Database migrated: version %d -> %d", beforeVer, afterVer)
+		}
 	}
 
 	return db, nil
+}
+
+// VacuumDB runs VACUUM on the database to reclaim unused space.
+func VacuumDB(db *sql.DB) error {
+	if _, err := db.Exec("VACUUM"); err != nil {
+		return fmt.Errorf("failed to vacuum database: %w", err)
+	}
+	log.Println("Database vacuum completed")
+	return nil
 }

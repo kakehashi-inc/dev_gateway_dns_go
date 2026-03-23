@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"dev_gateway_dns/app/api"
 	"dev_gateway_dns/app/cert"
@@ -63,6 +65,8 @@ func main() {
 }
 
 func runServe(cmd *cli.Command) {
+	log.Printf("Starting DevGatewayDNS %s", version)
+
 	// Determine DB path
 	dbPath := cmd.DBPath
 	if dbPath == "" {
@@ -110,6 +114,17 @@ func runServe(cmd *cli.Command) {
 
 	// Access logger
 	accessLogger := modules.NewAccessLogger(db)
+
+	// Startup access log cleanup
+	log.Println("Running startup access log cleanup...")
+	if err := accessLogger.Cleanup(config.AccessLogRetentionDays); err != nil {
+		log.Printf("Warning: startup access log cleanup failed: %v", err)
+	}
+
+	// Startup database vacuum
+	if err := modules.VacuumDB(db); err != nil {
+		log.Printf("Warning: startup database vacuum failed: %v", err)
+	}
 
 	// Determine listen address (use first one for binding)
 	listenAddr := "0.0.0.0"
@@ -176,16 +191,69 @@ func runServe(cmd *cli.Command) {
 		log.Printf("Warning: API server failed to start: %v", err)
 	}
 
-	// Startup health check
-	log.Println("Running startup health checks...")
-	results := status.RunHealthChecks(config.HTTPPort, config.HTTPSPort, config.DNSPort, config.ProxyPort, config.AdminPort)
-	for _, r := range results {
-		if r.Bound {
-			log.Printf("  [OK] %s (:%d/%s)", r.Service, r.Port, r.Protocol)
-		} else {
-			log.Printf("  [WARN] %s (:%d/%s) - not responding", r.Service, r.Port, r.Protocol)
+	// Background tasks stop channel
+	bgStopCh := make(chan struct{})
+	var bgWg sync.WaitGroup
+
+	// Periodic health check: first run after 3 seconds, then every 1 hour
+	bgWg.Add(1)
+	go func() {
+		defer bgWg.Done()
+		runHealthCheck := func() {
+			results := status.RunHealthChecks(config.HTTPPort, config.HTTPSPort, config.DNSPort, config.ProxyPort, config.AdminPort)
+			for _, r := range results {
+				if r.Bound {
+					log.Printf("  [OK] %s (:%d/%s)", r.Service, r.Port, r.Protocol)
+				} else {
+					log.Printf("  [WARN] %s (:%d/%s) - not responding", r.Service, r.Port, r.Protocol)
+				}
+			}
 		}
-	}
+
+		// Initial delay
+		delay := time.NewTimer(3 * time.Second)
+		select {
+		case <-delay.C:
+			log.Println("Running health checks...")
+			runHealthCheck()
+		case <-bgStopCh:
+			delay.Stop()
+			return
+		}
+
+		// Hourly
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				log.Println("Running health checks...")
+				runHealthCheck()
+			case <-bgStopCh:
+				return
+			}
+		}
+	}()
+
+	// Daily access log cleanup at midnight
+	bgWg.Add(1)
+	go func() {
+		defer bgWg.Done()
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+			timer := time.NewTimer(time.Until(next))
+			select {
+			case <-timer.C:
+				if err := accessLogger.Cleanup(config.AccessLogRetentionDays); err != nil {
+					log.Printf("Daily access log cleanup failed: %v", err)
+				}
+			case <-bgStopCh:
+				timer.Stop()
+				return
+			}
+		}
+	}()
 
 	log.Printf("DevGatewayDNS %s is running", version)
 	log.Printf("Admin UI: http://%s:%d", listenAddr, config.AdminPort)
@@ -195,12 +263,25 @@ func runServe(cmd *cli.Command) {
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 
-	log.Println("Shutting down...")
+	log.Println("Received shutdown signal, stopping services...")
+
+	log.Println("  Stopping background tasks...")
+	close(bgStopCh)
+	bgWg.Wait()
+
+	log.Println("  Stopping API server...")
 	apiServer.Stop()
+
+	log.Println("  Stopping forward proxy...")
 	forwardProxy.Stop()
+
+	log.Println("  Stopping reverse proxy...")
 	reverseProxy.Stop()
+
+	log.Println("  Stopping DNS server...")
 	dnsServer.Stop()
-	log.Println("Shutdown complete")
+
+	log.Println("All services stopped")
 }
 
 func runInstall(cmd *cli.Command) {

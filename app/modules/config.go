@@ -16,8 +16,9 @@ var DefaultSettings = map[string]string{
 	"admin_port":             "9090",
 	"listen_addresses":       `["0.0.0.0"]`,
 	"upstream_dns_fallback":  `["8.8.8.8","1.1.1.1"]`,
-	"dns_query_history_size": "1000",
-	"log_level":              `"info"`,
+	"dns_query_history_size":    "1000",
+	"log_level":                `"info"`,
+	"access_log_retention_days": "7",
 }
 
 // AppConfig holds the runtime configuration loaded from the database.
@@ -29,9 +30,10 @@ type AppConfig struct {
 	AdminPort           int      `json:"admin_port"`
 	ListenAddresses     []string `json:"listen_addresses"`
 	UpstreamDNSFallback []string `json:"upstream_dns_fallback"`
-	DNSQueryHistorySize int      `json:"dns_query_history_size"`
-	LogLevel            string   `json:"log_level"`
-	DBPath              string   `json:"-"`
+	DNSQueryHistorySize    int      `json:"dns_query_history_size"`
+	LogLevel               string   `json:"log_level"`
+	AccessLogRetentionDays int      `json:"access_log_retention_days"`
+	DBPath                 string   `json:"-"`
 }
 
 // NewDefaultConfig returns a config with default values.
@@ -44,8 +46,9 @@ func NewDefaultConfig() *AppConfig {
 		AdminPort:           9090,
 		ListenAddresses:     []string{"0.0.0.0"},
 		UpstreamDNSFallback: []string{"8.8.8.8", "1.1.1.1"},
-		DNSQueryHistorySize: 1000,
-		LogLevel:            "info",
+		DNSQueryHistorySize:    1000,
+		LogLevel:               "info",
+		AccessLogRetentionDays: 7,
 	}
 }
 
@@ -95,6 +98,9 @@ func LoadConfigFromDB(db *sql.DB) (*AppConfig, error) {
 	if v, ok := settings["log_level"]; ok {
 		json.Unmarshal([]byte(v), &cfg.LogLevel)
 	}
+	if v, ok := settings["access_log_retention_days"]; ok {
+		fmt.Sscanf(v, "%d", &cfg.AccessLogRetentionDays)
+	}
 
 	return cfg, nil
 }
@@ -123,8 +129,9 @@ func SaveConfigToDB(db *sql.DB, cfg *AppConfig) error {
 		"admin_port":             fmt.Sprintf("%d", cfg.AdminPort),
 		"listen_addresses":       string(listenJSON),
 		"upstream_dns_fallback":  string(upstreamJSON),
-		"dns_query_history_size": fmt.Sprintf("%d", cfg.DNSQueryHistorySize),
-		"log_level":              string(logLevelJSON),
+		"dns_query_history_size":    fmt.Sprintf("%d", cfg.DNSQueryHistorySize),
+		"log_level":                string(logLevelJSON),
+		"access_log_retention_days": fmt.Sprintf("%d", cfg.AccessLogRetentionDays),
 	}
 
 	for k, v := range settings {

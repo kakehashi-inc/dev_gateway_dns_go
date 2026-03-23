@@ -65,6 +65,7 @@
   "settings.listenAddresses": "LISTENアドレス",
   "settings.upstreamDns": "上流DNS（フォールバック）",
   "settings.queryHistorySize": "DNSクエリ履歴保持件数",
+  "settings.accessLogRetentionDays": "アクセスログ保持日数",
   "settings.logLevel": "ログレベル",
   "settings.save": "保存",
   "settings.saved": "設定を保存しました。ポート変更は再起動が必要です。",

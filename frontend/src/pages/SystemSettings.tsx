@@ -12,6 +12,7 @@ interface Settings {
   upstream_dns_fallback: string[];
   dns_query_history_size: number;
   log_level: string;
+  access_log_retention_days: number;
 }
 
 export default function SystemSettings() {
@@ -85,6 +86,17 @@ export default function SystemSettings() {
             type="number"
             value={form.dns_query_history_size}
             onChange={(e) => setForm({ ...form, dns_query_history_size: parseInt(e.target.value) || 1000 })}
+            className="flex-1 border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="w-48 text-sm">{t("settings.accessLogRetentionDays")}</label>
+          <input
+            type="number"
+            min="1"
+            value={form.access_log_retention_days}
+            onChange={(e) => setForm({ ...form, access_log_retention_days: parseInt(e.target.value) || 7 })}
             className="flex-1 border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
           />
         </div>

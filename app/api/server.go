@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -36,6 +37,8 @@ type Server struct {
 	frontendFS   fs.FS
 	startedAt    time.Time
 	version      string
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // NewServer creates a new API server.
@@ -50,6 +53,7 @@ func NewServer(
 	version string,
 	frontendFS fs.FS,
 ) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
 		db:           db,
 		config:       config,
@@ -61,6 +65,8 @@ func NewServer(
 		startedAt:    time.Now(),
 		version:      version,
 		frontendFS:   frontendFS,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -131,6 +137,7 @@ func (s *Server) Start() error {
 		log.Printf("Admin API listening on %s", addr)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("Admin API error: %v", err)
+			s.httpServer = nil
 		}
 	}()
 
@@ -139,8 +146,11 @@ func (s *Server) Start() error {
 
 // Stop shuts down the admin API server.
 func (s *Server) Stop() {
+	s.cancel()
 	if s.httpServer != nil {
-		s.httpServer.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.httpServer.Shutdown(ctx)
 	}
 }
 
@@ -409,10 +419,21 @@ func (s *Server) listDNSRecords(w http.ResponseWriter) {
 	writeJSON(w, http.StatusOK, records)
 }
 
+// validRecordTypes defines the DNS record types supported by the DNS server.
+var validRecordTypes = map[string]bool{
+	"A": true, "AAAA": true, "CNAME": true, "MX": true, "TXT": true,
+	"SRV": true, "NS": true, "PTR": true, "CAA": true, "SOA": true,
+	"NAPTR": true, "SSHFP": true, "TLSA": true, "DS": true, "DNSKEY": true,
+}
+
 func (s *Server) createDNSRecord(w http.ResponseWriter, r *http.Request) {
 	var rec models.DNSRecord
 	if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if !validRecordTypes[rec.Type] {
+		writeError(w, http.StatusBadRequest, "unsupported record type")
 		return
 	}
 	if rec.TTL == 0 {
@@ -458,6 +479,10 @@ func (s *Server) updateDNSRecord(w http.ResponseWriter, r *http.Request, id int6
 	var rec models.DNSRecord
 	if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if !validRecordTypes[rec.Type] {
+		writeError(w, http.StatusBadRequest, "unsupported record type")
 		return
 	}
 
@@ -675,10 +700,11 @@ func (s *Server) handleStatusLive(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	ctx := r.Context()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-s.ctx.Done():
+			return
+		case <-r.Context().Done():
 			return
 		case <-ticker.C:
 			rows, err := s.db.Query(
@@ -696,7 +722,7 @@ func (s *Server) handleStatusLive(w http.ResponseWriter, r *http.Request) {
 				logs = append(logs, l)
 			}
 			rows.Close()
-			wsjson.Write(ctx, c, logs)
+			wsjson.Write(s.ctx, c, logs)
 		}
 	}
 }
@@ -713,14 +739,15 @@ func (s *Server) handleDNSQueriesLive(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	ctx := r.Context()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-s.ctx.Done():
+			return
+		case <-r.Context().Done():
 			return
 		case <-ticker.C:
 			entries := s.queryLog.Entries()
-			wsjson.Write(ctx, c, entries)
+			wsjson.Write(s.ctx, c, entries)
 		}
 	}
 }

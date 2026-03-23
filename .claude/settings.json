@@ -20,7 +20,13 @@
       "Bash(yarn format:*)",
       "Bash(yarn format:style)",
       "Bash(yarn build:*)",
-      "Bash(yarn dlx:*)"
+      "Bash(yarn dlx:*)",
+      "Bash(go build:*)",
+      "Bash(make)",
+      "Bash(make clean:*)",
+      "Bash(make all:*)",
+      "Bash(make windows:*)",
+      "Bash(dlv version:*)"
     ],
     "deny": [],
     "ask": []

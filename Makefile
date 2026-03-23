@@ -5,7 +5,7 @@ LINUX_AMD64=$(EXECUTABLE)_linux_amd64
 LINUX_ARM64=$(EXECUTABLE)_linux_arm64
 DARWIN_AMD64=$(EXECUTABLE)_macos_amd64
 DARWIN_ARM64=$(EXECUTABLE)_macos_arm64
-VERSION=v1.0.0
+VERSION=v0.1.0
 
 LDFLAGS=-s -w -X main.version=$(VERSION)
 BIN_DIR=bin
@@ -20,25 +20,24 @@ else
     RM = rm -rf $(BIN_DIR)
 endif
 
-.PHONY: all build frontend backend windows linux darwin clean prepare
+.PHONY: all build windows linux darwin clean prepare frontend
 
-all: frontend backend
+all: build
 
 frontend:
-	cd $(FRONTEND_DIR) && yarn install && yarn build
+	@test -d $(FRONTEND_DIR)/node_modules || (cd $(FRONTEND_DIR) && yarn install)
+	cd $(FRONTEND_DIR) && yarn build
 
-backend: windows linux darwin
-
-build: all
+build: frontend windows linux darwin
 
 prepare:
 	$(MKDIR)
 
-windows: prepare $(WINDOWS_AMD64) $(WINDOWS_ARM64)
+windows: frontend prepare $(WINDOWS_AMD64) $(WINDOWS_ARM64)
 
-linux: prepare $(LINUX_AMD64) $(LINUX_ARM64)
+linux: frontend prepare $(LINUX_AMD64) $(LINUX_ARM64)
 
-darwin: prepare $(DARWIN_AMD64) $(DARWIN_ARM64)
+darwin: frontend prepare $(DARWIN_AMD64) $(DARWIN_ARM64)
 
 # Build target macro
 define build-target

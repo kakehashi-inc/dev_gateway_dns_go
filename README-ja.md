@@ -14,12 +14,64 @@ DevGatewayDNSは、社内LANにおいてWiFi接続のスマートフォン等を
 - **SSL証明書管理**: 自己署名CA証明書の自動生成、ホスト別証明書の自動発行、QRコードによるモバイル端末への配布。
 - **Web UI**: プロキシ設定、DNS管理、証明書管理、ステータスモニタ、システム設定をブラウザから操作。日本語/英語対応。
 - **REST API / WebSocket**: 管理UI向けの全機能API、リアルタイムログ配信。
-- **OSサービス登録**: Windows/macOS/Linuxサービスとして登録・管理可能。
-- **単一バイナリ配布**: フロントエンド、マイグレーションSQL等を全てバイナリに同梱。6プラットフォーム対応。
+- **単一バイナリ配布**: フロントエンド、マイグレーションSQL等を全てバイナリに同梱。Windows/macOS/Linux対応。
 
-技術スタック: Go, SQLite (WAL), codeberg.org/miekg/dns, kardianos/service, nhooyr.io/websocket, pressly/goose v3
+## 2. 使い方
 
-## 2. 開発者向けリファレンス
+ポート53/80/443のバインドに管理者権限が必要です。サービスとして登録すると管理者権限で実行されます。
+
+### Step 1. 動作確認
+
+フォアグラウンドで起動し、正常に動作することを確認します（Ctrl+Cで停止）。
+
+```bash
+# Windows: 管理者として実行したコマンドプロンプトで実行
+# macOS/Linux:
+sudo ./devgatewaydns serve
+```
+
+管理UIが `http://<サーバーIP>:9090` で開けることを確認してください。
+
+### Step 2. サービス登録
+
+動作確認後、OSサービスとして登録します。サービスは管理者権限で実行されるため、以降 `sudo` は不要です。起動オプションはサービスに保存されます。
+
+```bash
+# Windows: 管理者として実行したコマンドプロンプトで実行
+# macOS/Linux:
+sudo ./devgatewaydns install
+./devgatewaydns start
+```
+
+### Step 3. サービス管理
+
+```bash
+./devgatewaydns stop       # 停止
+./devgatewaydns start      # 開始
+./devgatewaydns status     # 状態確認
+./devgatewaydns uninstall  # 登録解除
+```
+
+### 起動オプション（serve / install 共通）
+
+| オプション | デフォルト | 説明 |
+|---|---|---|
+| `--http-port` | 80 | HTTP受付ポート |
+| `--https-port` | 443 | HTTPS受付ポート |
+| `--dns-port` | 53 | DNS受付ポート |
+| `--proxy-port` | 8888 | フォワードプロキシポート |
+| `--admin-port` | 9090 | 管理UIポート |
+| `--listen` | 0.0.0.0 | LISTENアドレス（複数指定可） |
+| `--db` | (バイナリ同ディレクトリ)/devgatewaydns.db | DBファイルパス |
+
+例:
+
+```bash
+./devgatewaydns serve --listen 192.168.1.10
+./devgatewaydns install --listen 192.168.1.10
+```
+
+## 3. 開発者向けリファレンス
 
 ### 開発ルール
 

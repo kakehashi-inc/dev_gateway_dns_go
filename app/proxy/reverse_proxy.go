@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"fmt"
@@ -116,6 +117,7 @@ func (rp *ReverseProxy) Start() error {
 		log.Printf("HTTP reverse proxy listening on %s", httpAddr)
 		if err := rp.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP proxy error: %v", err)
+			rp.httpServer = nil
 		}
 	}()
 
@@ -123,11 +125,13 @@ func (rp *ReverseProxy) Start() error {
 		ln, err := tls.Listen("tcp", httpsAddr, rp.httpsServer.TLSConfig)
 		if err != nil {
 			log.Printf("HTTPS proxy listen error: %v", err)
+			rp.httpsServer = nil
 			return
 		}
 		log.Printf("HTTPS reverse proxy listening on %s", httpsAddr)
 		if err := rp.httpsServer.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTPS proxy error: %v", err)
+			rp.httpsServer = nil
 		}
 	}()
 
@@ -136,11 +140,13 @@ func (rp *ReverseProxy) Start() error {
 
 // Stop shuts down both proxy servers.
 func (rp *ReverseProxy) Stop() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if rp.httpServer != nil {
-		rp.httpServer.Close()
+		rp.httpServer.Shutdown(ctx)
 	}
 	if rp.httpsServer != nil {
-		rp.httpsServer.Close()
+		rp.httpsServer.Shutdown(ctx)
 	}
 }
 
@@ -199,7 +205,7 @@ func (rp *ReverseProxy) proxyHandler(source string) http.Handler {
 
 		if rp.logAccess != nil {
 			rp.logAccess(models.AccessLog{
-				Timestamp:      time.Now(),
+				Timestamp:      time.Now().UTC(),
 				Source:         source,
 				ClientIP:       extractIP(r.RemoteAddr),
 				Hostname:       hostname,

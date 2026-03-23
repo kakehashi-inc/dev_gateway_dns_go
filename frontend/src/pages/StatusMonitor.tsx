@@ -57,7 +57,7 @@ export default function StatusMonitor() {
             <tbody>
               {logs.map((log, i) => (
                 <tr key={i} className="border-t dark:border-gray-700">
-                  <td className="p-1 font-mono">{new Date(log.timestamp).toLocaleTimeString()}</td>
+                  <td className="p-1 font-mono">{new Date(log.timestamp).toLocaleString()}</td>
                   <td className="p-1">{log.source}</td>
                   <td className="p-1 font-mono">{log.client_ip}</td>
                   <td className="p-1 font-mono">{log.hostname}</td>

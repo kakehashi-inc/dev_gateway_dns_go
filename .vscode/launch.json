@@ -9,9 +9,14 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/main.go",
-            "args": [],
-            "console": "integratedTerminal"
+            "program": "${workspaceFolder}",
+            "args": [
+                "serve",
+                "--listen", "127.0.0.1",
+                "--listen", "192.168.220.222"
+            ],
+            "console": "integratedTerminal",
+            "asRoot": true
         }
     ]
 }

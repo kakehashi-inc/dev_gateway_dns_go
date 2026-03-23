@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -80,6 +81,7 @@ func (fp *ForwardProxy) Start() error {
 		log.Printf("Forward proxy listening on %s", addr)
 		if err := fp.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("Forward proxy error: %v", err)
+			fp.server = nil
 		}
 	}()
 
@@ -89,7 +91,9 @@ func (fp *ForwardProxy) Start() error {
 // Stop shuts down the forward proxy.
 func (fp *ForwardProxy) Stop() {
 	if fp.server != nil {
-		fp.server.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		fp.server.Shutdown(ctx)
 	}
 }
 
@@ -145,7 +149,7 @@ func (fp *ForwardProxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if fp.logAccess != nil {
 			fp.logAccess(models.AccessLog{
-				Timestamp:      time.Now(),
+				Timestamp:      time.Now().UTC(),
 				Source:         "forward",
 				ClientIP:       extractIP(r.RemoteAddr),
 				Hostname:       hostname,

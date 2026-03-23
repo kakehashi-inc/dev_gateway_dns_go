@@ -65,6 +65,7 @@
   "settings.listenAddresses": "Listen Addresses",
   "settings.upstreamDns": "Upstream DNS (Fallback)",
   "settings.queryHistorySize": "DNS Query History Size",
+  "settings.accessLogRetentionDays": "Access Log Retention (days)",
   "settings.logLevel": "Log Level",
   "settings.save": "Save",
   "settings.saved": "Settings saved. Port changes require restart.",

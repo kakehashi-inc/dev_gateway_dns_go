@@ -63,7 +63,7 @@ export default function DNSManagement() {
     return true;
   });
 
-  const recordTypes = ["A", "AAAA", "CNAME", "MX", "TXT", "SRV", "NS", "PTR", "CAA", "SOA"];
+  const recordTypes = ["A", "AAAA", "CNAME", "MX", "TXT", "SRV", "NS", "PTR", "CAA", "SOA", "NAPTR", "SSHFP", "TLSA", "DS", "DNSKEY"];
 
   return (
     <div className="space-y-6">

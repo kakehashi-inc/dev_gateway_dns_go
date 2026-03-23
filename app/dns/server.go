@@ -54,11 +54,13 @@ func (s *Server) Start() error {
 	go func() {
 		if err := s.udpServer.ListenAndServe(); err != nil {
 			log.Printf("DNS UDP server error: %v", err)
+			s.udpServer = nil
 		}
 	}()
 	go func() {
 		if err := s.tcpServer.ListenAndServe(); err != nil {
 			log.Printf("DNS TCP server error: %v", err)
+			s.tcpServer = nil
 		}
 	}()
 
@@ -68,7 +70,8 @@ func (s *Server) Start() error {
 
 // Stop shuts down the DNS server.
 func (s *Server) Stop() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if s.udpServer != nil {
 		s.udpServer.Shutdown(ctx)
 	}
