@@ -9,6 +9,7 @@ VERSION=v1.0.0
 
 LDFLAGS=-s -w -X main.version=$(VERSION)
 BIN_DIR=bin
+FRONTEND_DIR=frontend
 
 # OS detection for shell commands
 ifeq ($(OS),Windows_NT)
@@ -19,11 +20,16 @@ else
     RM = rm -rf $(BIN_DIR)
 endif
 
-.PHONY: all build windows linux darwin clean prepare
+.PHONY: all build frontend backend windows linux darwin clean prepare
 
-all: build
+all: frontend backend
 
-build: windows linux darwin
+frontend:
+	cd $(FRONTEND_DIR) && yarn install && yarn build
+
+backend: windows linux darwin
+
+build: all
 
 prepare:
 	$(MKDIR)
@@ -39,7 +45,7 @@ define build-target
 $(1): export GOOS=$(2)
 $(1): export GOARCH=$(3)
 $(1):
-	go build -o $(BIN_DIR)/$(1) -ldflags="$(LDFLAGS)" main.go
+	go build -o $(BIN_DIR)/$(1) -ldflags="$(LDFLAGS)" .
 endef
 
 $(eval $(call build-target,$(WINDOWS_AMD64),windows,amd64))
@@ -51,3 +57,4 @@ $(eval $(call build-target,$(DARWIN_ARM64),darwin,arm64))
 
 clean:
 	$(RM)
+	rm -rf $(FRONTEND_DIR)/dist

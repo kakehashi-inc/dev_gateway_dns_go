@@ -1,86 +1,101 @@
 # DevGatewayDNS
 
-## 1. システム概要
+[Japanese / 日本語](README-ja.md)
 
-システムの概略をここに記載してください。
+## 1. System Overview
 
-## 2. 開発者向けリファレンス
+DevGatewayDNS is an integrated development tool that enables all clients on a local network, including smartphones connected via WiFi, to access virtual web pages by hostname.
 
-### 開発ルール
+Key features:
 
-- 開発者の参照するドキュメントは`README.md`を除き`Documents`に配置すること。
-- 対応後は必ずリンターで確認を行い適切な修正を行うこと。故意にリンターエラーを許容する際は、その旨をコメントで明記すること。 **ビルドはリリース時に行うものでデバックには不要なのでリンターまでで十分**
-- モデルの実装時は、テーブル単位でファイルを配置すること。
-- 部品化するものは`modules`にファイルを作成して実装すること。
-- 一時的なスクリプトなど（例:調査用スクリプト）は`scripts`ディレクトリに配置すること。
-- モデルを作成および変更を加えた場合は、`Documents/テーブル定義.md`を更新すること。テーブル定義はテーブルごとに表で表現し、カラム名や型およびリレーションを表内で表現すること。
-- システムの動作などに変更があった場合は、`Documents/システム仕様.md`を更新すること。
+- **Reverse Proxy**: Routes HTTP/HTTPS requests to backend services based on hostname. Supports SNI-based routing, automatic header/cookie handling.
+- **DNS Server**: Automatically generates A records linked to proxy rules, manual record management, and per-NIC upstream DNS forwarding.
+- **Forward Proxy**: Provides an HTTP proxy for clients that cannot change DNS settings (e.g., iOS devices).
+- **SSL Certificate Management**: Automatic self-signed CA certificate generation, per-host certificate issuance, and QR code distribution for mobile devices.
+- **Web UI**: Manage proxy settings, DNS records, certificates, status monitoring, and system settings from a browser. Supports Japanese and English.
+- **REST API / WebSocket**: Full-featured API for the admin UI with real-time log streaming.
+- **OS Service Registration**: Can be registered and managed as a Windows/macOS/Linux service.
+- **Single Binary Distribution**: Frontend assets, migration SQL, etc. are all embedded in the binary. Supports 6 platforms.
 
-### Go 操作コマンド
+Tech stack: Go, SQLite (WAL), codeberg.org/miekg/dns, kardianos/service, nhooyr.io/websocket, pressly/goose v3
 
-デバッグモジュールの追加・更新
+## 2. Developer Reference
+
+### Development Rules
+
+- Developer documentation (except `README.md`) must be placed in the `Documents` directory.
+- Always run the linter after changes and apply appropriate fixes. If intentionally allowing a linter error, document the reason in a comment. **Builds are for releases only; running the linter is sufficient for debugging.**
+- When implementing models, place one file per table.
+- Reusable components must be implemented as separate files in the `modules` directory.
+- Temporary scripts (e.g., investigation scripts) must be placed in the `scripts` directory.
+- When creating or modifying models, update `Documents/テーブル定義.md`. Table definitions must be expressed as a table per database table, showing column names, types, and relations within the table.
+- When system behavior changes, update `Documents/システム仕様.md`.
+
+### Go Commands
+
+Install/update debug module
 
 ```bash
 go install github.com/go-delve/delve/cmd/dlv@latest
 ```
 
-モジュールの追加
+Add a module
 
 ```bash
 go get <package-name>
 ```
 
-モジュールの追加・ビルド
+Add and build a module
 
 ```bash
 go install <package-name>
 ```
 
-モジュールファイルの作成
+Initialize module file
 
 ```bash
 go mod init <module-name>
 ```
 
-モジュールのダウンロード（モジュール名を省略するとgo.modの全て）
+Download modules (omit module name to download all from go.mod)
 
 ```bash
 go mod download <module-name>
 ```
 
-モジュールの最適化（ソースとgo.modの双方向での一致）
+Tidy modules (sync source and go.mod)
 
 ```bash
 go mod tidy
 ```
 
-モジュールの最新化
+Update all modules
 
 ```bash
 go get -u
 ```
 
-Go バージョンの更新
+Update Go version
 
 ```bash
 go mod tidy --go=1.25
 ```
 
-キャッシュのクリア
+Clear cache
 
 ```bash
 go clean --cache --testcache
 ```
 
-### ビルドやリリース方法
+### Build and Release
 
-ビルド
+Build
 
 ```bash
 go build
 ```
 
-リリース
+Release
 
 ```bash
 make
