@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useApi, apiPost, apiDelete, apiPatch } from "../hooks/useApi";
+import { useApi, apiPost, apiPut, apiDelete, apiPatch } from "../hooks/useApi";
 
 interface ProxyRule {
   id: number;
@@ -11,21 +11,51 @@ interface ProxyRule {
   enabled: boolean;
 }
 
+type FormData = { hostname: string; backend_protocol: string; backend_ip: string; backend_port: number };
+
+const emptyForm: FormData = { hostname: "", backend_protocol: "http", backend_ip: "", backend_port: 8080 };
+
 export default function ProxySettings() {
   const { t } = useTranslation();
   const { data: rules, refetch } = useApi<ProxyRule[]>("/proxy/rules");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ hostname: "", backend_protocol: "http", backend_ip: "", backend_port: 8080 });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<FormData>({ ...emptyForm });
 
-  const addRule = async () => {
-    await apiPost("/proxy/rules", {
-      ...form,
-      backend_ip: form.backend_ip || null,
-      enabled: true,
+  const openAdd = () => {
+    setEditingId(null);
+    setForm({ ...emptyForm });
+    setShowForm(true);
+  };
+
+  const openEdit = (rule: ProxyRule) => {
+    setEditingId(rule.id);
+    setForm({
+      hostname: rule.hostname,
+      backend_protocol: rule.backend_protocol,
+      backend_ip: rule.backend_ip || "",
+      backend_port: rule.backend_port,
     });
+    setShowForm(true);
+  };
+
+  const saveRule = async () => {
+    const body = { ...form, backend_ip: form.backend_ip || null, enabled: true };
+    if (editingId !== null) {
+      await apiPut(`/proxy/rules/${editingId}`, body);
+    } else {
+      await apiPost("/proxy/rules", body);
+    }
     setShowForm(false);
-    setForm({ hostname: "", backend_protocol: "http", backend_ip: "", backend_port: 8080 });
+    setEditingId(null);
+    setForm({ ...emptyForm });
     refetch();
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm({ ...emptyForm });
   };
 
   const deleteRule = async (id: number) => {
@@ -42,10 +72,7 @@ export default function ProxySettings() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{t("proxy.title")}</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-        >
+        <button onClick={openAdd} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
           {t("proxy.add")}
         </button>
       </div>
@@ -82,10 +109,10 @@ export default function ProxySettings() {
             />
           </div>
           <div className="flex gap-2">
-            <button onClick={addRule} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">
+            <button onClick={saveRule} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">
               {t("proxy.save")}
             </button>
-            <button onClick={() => setShowForm(false)} className="px-3 py-1 border rounded text-sm">
+            <button onClick={cancelForm} className="px-3 py-1 border rounded text-sm">
               {t("proxy.cancel")}
             </button>
           </div>
@@ -118,7 +145,10 @@ export default function ProxySettings() {
                   {rule.enabled ? "ON" : "OFF"}
                 </button>
               </td>
-              <td className="p-2">
+              <td className="p-2 space-x-2">
+                <button onClick={() => openEdit(rule)} className="text-blue-600 text-xs hover:underline">
+                  {t("proxy.edit")}
+                </button>
                 <button onClick={() => deleteRule(rule.id)} className="text-red-600 text-xs hover:underline">
                   {t("proxy.delete")}
                 </button>

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Dashboard from "./pages/Dashboard";
@@ -18,6 +19,10 @@ const navItems = [
 
 export default function App() {
   const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
 
   const toggleLang = () => {
     i18n.changeLanguage(i18n.language === "ja" ? "en" : "ja");

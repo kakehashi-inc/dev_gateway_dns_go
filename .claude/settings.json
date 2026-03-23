@@ -19,7 +19,8 @@
       "Bash(yarn lint:*)",
       "Bash(yarn format:*)",
       "Bash(yarn format:style)",
-      "Bash(yarn build:*)"
+      "Bash(yarn build:*)",
+      "Bash(yarn dlx:*)"
     ],
     "deny": [],
     "ask": []

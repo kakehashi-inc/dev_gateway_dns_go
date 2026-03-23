@@ -27,6 +27,8 @@ export default function DNSManagement() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", type: "A", value: "", ttl: 300 });
   const [queryLogs, setQueryLogs] = useState<QueryLog[]>([]);
+  const [filterHostname, setFilterHostname] = useState("");
+  const [filterClientIP, setFilterClientIP] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -54,6 +56,12 @@ export default function DNSManagement() {
     await apiDelete(`/dns/records/${id}`);
     refetch();
   };
+
+  const filteredLogs = queryLogs.filter((log) => {
+    if (filterHostname && !log.hostname.includes(filterHostname)) return false;
+    if (filterClientIP && !log.client_ip.includes(filterClientIP)) return false;
+    return true;
+  });
 
   const recordTypes = ["A", "AAAA", "CNAME", "MX", "TXT", "SRV", "NS", "PTR", "CAA", "SOA"];
 
@@ -83,9 +91,9 @@ export default function DNSManagement() {
               onChange={(e) => setForm({ ...form, type: e.target.value })}
               className="border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
             >
-              {recordTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {recordTypes.map((rt) => (
+                <option key={rt} value={rt}>
+                  {rt}
                 </option>
               ))}
             </select>
@@ -155,6 +163,20 @@ export default function DNSManagement() {
 
       <div className="bg-white dark:bg-gray-800 rounded p-4 shadow">
         <h3 className="font-semibold mb-2">{t("dns.queryHistory")}</h3>
+        <div className="flex gap-2 mb-2">
+          <input
+            placeholder={t("dns.filterHostname")}
+            value={filterHostname}
+            onChange={(e) => setFilterHostname(e.target.value)}
+            className="flex-1 border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600"
+          />
+          <input
+            placeholder={t("dns.filterClientIP")}
+            value={filterClientIP}
+            onChange={(e) => setFilterClientIP(e.target.value)}
+            className="flex-1 border rounded px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600"
+          />
+        </div>
         <div className="max-h-64 overflow-y-auto">
           <table className="w-full text-xs">
             <thead>
@@ -166,7 +188,7 @@ export default function DNSManagement() {
               </tr>
             </thead>
             <tbody>
-              {queryLogs
+              {filteredLogs
                 .slice(-50)
                 .reverse()
                 .map((log, i) => (
