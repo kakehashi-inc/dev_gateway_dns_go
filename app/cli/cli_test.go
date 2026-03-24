@@ -188,20 +188,41 @@ func TestHasFlag_EmptySetFlags(t *testing.T) {
 
 func TestMultiFlag_Set(t *testing.T) {
 	var mf multiFlag
-	if err := mf.Set("first"); err != nil {
-		t.Fatalf("Set(first) error: %v", err)
+	if err := mf.Set("192.168.1.1"); err != nil {
+		t.Fatalf("Set(192.168.1.1) error: %v", err)
 	}
-	if err := mf.Set("second"); err != nil {
-		t.Fatalf("Set(second) error: %v", err)
+	if err := mf.Set("10.0.0.1"); err != nil {
+		t.Fatalf("Set(10.0.0.1) error: %v", err)
 	}
 	if len(mf) != 2 {
 		t.Fatalf("len = %d, want 2", len(mf))
 	}
-	if mf[0] != "first" {
-		t.Errorf("mf[0] = %q, want %q", mf[0], "first")
+	if mf[0] != "192.168.1.1" {
+		t.Errorf("mf[0] = %q, want %q", mf[0], "192.168.1.1")
 	}
-	if mf[1] != "second" {
-		t.Errorf("mf[1] = %q, want %q", mf[1], "second")
+	if mf[1] != "10.0.0.1" {
+		t.Errorf("mf[1] = %q, want %q", mf[1], "10.0.0.1")
+	}
+}
+
+func TestMultiFlag_Set_RejectsEmpty(t *testing.T) {
+	var mf multiFlag
+	if err := mf.Set(""); err == nil {
+		t.Fatal("Set('') should return error")
+	}
+}
+
+func TestMultiFlag_Set_RejectsInvalid(t *testing.T) {
+	var mf multiFlag
+	if err := mf.Set("not-an-ip"); err == nil {
+		t.Fatal("Set(not-an-ip) should return error")
+	}
+}
+
+func TestMultiFlag_Set_RejectsIPv6(t *testing.T) {
+	var mf multiFlag
+	if err := mf.Set("::1"); err == nil {
+		t.Fatal("Set(::1) should return error for IPv6")
 	}
 }
 

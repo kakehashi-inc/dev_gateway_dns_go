@@ -36,3 +36,6 @@ tmp/
 bin/
 *.exe
 __debug_bin*
+.env
+.env.*
+!.env.example

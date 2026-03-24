@@ -13,7 +13,7 @@
             "args": [
                 "serve",
                 "--listen", "127.0.0.1",
-                "--listen", "192.168.220.222"
+                "--listen", "${config:dev.listenAddr}"
             ],
             "console": "integratedTerminal",
             "asRoot": true

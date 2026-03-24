@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -134,6 +135,14 @@ type multiFlag []string
 
 func (m *multiFlag) String() string { return strings.Join(*m, ", ") }
 func (m *multiFlag) Set(val string) error {
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return fmt.Errorf("listen address must not be empty")
+	}
+	ip := net.ParseIP(val)
+	if ip == nil || ip.To4() == nil {
+		return fmt.Errorf("listen address %q is not a valid IPv4 address", val)
+	}
 	*m = append(*m, val)
 	return nil
 }
