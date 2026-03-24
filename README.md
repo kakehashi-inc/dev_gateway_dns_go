@@ -83,12 +83,15 @@ Example:
 - When creating or modifying models, update `Documents/テーブル定義.md`. Table definitions must be expressed as a table per database table, showing column names, types, and relations within the table.
 - When system behavior changes, update `Documents/システム仕様.md`.
 
-### Security Software Compatibility
+### Firewall Configuration
 
-Security software or firewalls may block incoming connections. If health checks on `--listen` IP addresses fail, allow incoming connections for the following paths in your security software or firewall settings:
+OS or security software firewalls may block incoming connections. If health checks on `--listen` IP addresses fail, allow incoming connections for the debug binary in your firewall settings:
 
-- Direct specification: `<project-root>/__debug_bin<number>`
-- Wildcard: `<project-root>/__debug_bin*`
+If wildcard is supported:
+`<project-root>/__debug_bin*`
+
+File specification:
+`<project-root>/__debug_bin<number>`
 
 ### Go Commands
 
