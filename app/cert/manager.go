@@ -53,11 +53,6 @@ func (m *Manager) Init() error {
 		}
 	}
 
-	// Generate a certificate for health checks (not saved to DB, cache only)
-	if _, err := m.generateHealthCheckCert(); err != nil {
-		log.Printf("Warning: failed to generate health check certificate: %v", err)
-	}
-
 	return nil
 }
 
@@ -284,53 +279,6 @@ func (m *Manager) generateAndSaveCA() error {
 	m.caKey = key
 	log.Println("New CA certificate generated and saved")
 	return nil
-}
-
-// generateHealthCheckCert creates a self-signed certificate for health check TLS connections.
-// It is stored in cache only (not persisted to DB).
-func (m *Manager) generateHealthCheckCert() (*tls.Certificate, error) {
-	const hostname = "localhost"
-
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return nil, err
-	}
-
-	now := time.Now()
-	template := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject:      pkix.Name{CommonName: hostname},
-		DNSNames:     []string{hostname},
-		NotBefore:    now,
-		NotAfter:     now.Add(10 * 365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, m.caCert, &key.PublicKey, m.caKey)
-	if err != nil {
-		return nil, err
-	}
-
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-
-	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	m.cache[hostname] = &tlsCert
-	return &tlsCert, nil
 }
 
 func (m *Manager) loadOrGenerateHostCert(hostname string) (*tls.Certificate, error) {

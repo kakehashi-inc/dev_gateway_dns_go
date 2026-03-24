@@ -115,6 +115,11 @@ func runServe(cmd *cli.Command) {
 	// Renew expired host certificates
 	certManager.RenewExpiredCerts()
 
+	// Pre-generate localhost certificate for health checks
+	if _, err := certManager.GetCertificate("localhost"); err != nil {
+		log.Printf("Warning: failed to pre-generate localhost certificate: %v", err)
+	}
+
 	// Access logger
 	accessLogger := modules.NewAccessLogger(db)
 
