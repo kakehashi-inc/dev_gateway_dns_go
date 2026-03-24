@@ -28,7 +28,8 @@
       "Bash(make windows:*)",
       "Bash(dlv version:*)",
       "Bash(curl:*)",
-      "Bash(yarn setup:fonts)"
+      "Bash(yarn setup:fonts)",
+      "Bash(dig:*)"
     ],
     "deny": [],
     "ask": []
