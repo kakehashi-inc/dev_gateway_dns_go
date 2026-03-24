@@ -3,6 +3,7 @@
     "allow": [
       "mcp__serena",
       "WebSearch",
+      "WebFetch",
       "SemanticSearch",
       "Bash(find:*)",
       "Bash(grep:*)",
