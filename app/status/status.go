@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -32,22 +33,35 @@ type OverviewStatus struct {
 
 const healthCheckTimeout = 5 * time.Second
 
-// checkHTTPProxy sends an HTTP request and verifies the proxy responds.
+// checkHTTPProxy sends an HTTP request to /health and verifies the proxy responds with 200.
 func checkHTTPProxy(addr string, port int) bool {
 	client := &http.Client{Timeout: healthCheckTimeout}
-	resp, err := client.Get(fmt.Sprintf("http://%s:%d/", addr, port))
+	resp, err := client.Get(fmt.Sprintf("http://%s:%d/health", addr, port))
 	if err != nil {
 		return false
 	}
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
-	return true
+	return resp.StatusCode == http.StatusOK
 }
 
-// checkHTTPSProxy sends a CONNECT request to check HTTPS proxy availability.
-func checkHTTPSProxy(addr string, httpsPort, proxyPort int) bool {
-	// TODO: implement via ForwardProxy CONNECT with internal health endpoint
-	return false
+// checkHTTPSProxy sends an HTTPS request to /health with certificate verification disabled.
+func checkHTTPSProxy(addr string, httpsPort int) bool {
+	client := &http.Client{
+		Timeout: healthCheckTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, //nolint:gosec // health check against self-signed certs
+			},
+		},
+	}
+	resp, err := client.Get(fmt.Sprintf("https://%s:%d/health", addr, httpsPort))
+	if err != nil {
+		return false
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // checkDNS sends a DNS A query and verifies a response is returned.
@@ -108,7 +122,7 @@ func RunHealthChecks(listenAddrs []string, httpPort, httpsPort, dnsPort, proxyPo
 			return checkHTTPProxy(addr, httpPort)
 		}},
 		{"HTTPS Proxy", httpsPort, "tls", func(addr string) bool {
-			return checkHTTPSProxy(addr, httpsPort, proxyPort)
+			return checkHTTPSProxy(addr, httpsPort)
 		}},
 		{"DNS (TCP)", dnsPort, "tcp", func(addr string) bool {
 			return checkDNS(addr, dnsPort, "tcp")

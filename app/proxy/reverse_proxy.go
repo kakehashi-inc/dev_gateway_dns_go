@@ -97,7 +97,11 @@ func (rp *ReverseProxy) Start() error {
 	handler := rp.proxyHandler("reverse")
 	tlsConfig := &tls.Config{
 		GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return rp.getCert(info.ServerName)
+			name := info.ServerName
+			if name == "" {
+				name = "localhost"
+			}
+			return rp.getCert(name)
 		},
 	}
 
@@ -149,6 +153,12 @@ func (rp *ReverseProxy) proxyHandler(source string) http.Handler {
 		rp.mu.RLock()
 		rule, ok := rp.rules[hostname]
 		rp.mu.RUnlock()
+
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+			return
+		}
 
 		if !ok || !rule.Enabled {
 			http.Error(w, "No proxy rule for this host", http.StatusBadGateway)
