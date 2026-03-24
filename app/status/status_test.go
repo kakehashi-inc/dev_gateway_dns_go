@@ -4,21 +4,12 @@ import (
 	"testing"
 )
 
-func TestCheckPortBind_UnboundPort(t *testing.T) {
-	// Port 59123 should not be bound on any test environment.
-	got := CheckPortBind("127.0.0.1", 59123, "tcp")
-	if got {
-		t.Errorf("CheckPortBind on unbound port: got true, want false")
-	}
-}
-
 func TestRunHealthChecks_EntryCount(t *testing.T) {
 	results := RunHealthChecks([]string{"127.0.0.1"}, 59001, 59002, 59003, 59004, 59005)
 	if len(results) != 6 {
 		t.Errorf("RunHealthChecks returned %d entries, want 6", len(results))
 	}
 
-	// Verify service names are set correctly.
 	expectedServices := []string{
 		"HTTP Proxy", "HTTPS Proxy", "DNS (TCP)", "DNS (UDP)", "Forward Proxy", "Admin UI",
 	}
@@ -28,11 +19,10 @@ func TestRunHealthChecks_EntryCount(t *testing.T) {
 		}
 	}
 
-	// TCP/TLS ports should be unbound since we used high random ports.
-	// UDP dial always succeeds (connectionless), so skip UDP checks.
+	// All services should be unreachable on these random high ports.
 	for i, r := range results {
-		if (r.Protocol == "tcp" || r.Protocol == "tls") && r.Bound {
-			t.Errorf("results[%d].Bound = true for %s port %d, expected false", i, r.Protocol, r.Port)
+		if r.Bound {
+			t.Errorf("results[%d].Bound = true for %s, expected false", i, r.Service)
 		}
 	}
 }
