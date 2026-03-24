@@ -140,8 +140,12 @@ func RunHealthChecks(listenAddrs []string, httpPort, httpsPort, dnsPort, proxyPo
 
 	var results []PortHealth
 	for _, addr := range listenAddrs {
+		checkAddr := addr
+		if checkAddr == "0.0.0.0" {
+			checkAddr = "127.0.0.1"
+		}
 		for _, c := range checks {
-			bound := c.fn(addr)
+			bound := c.fn(checkAddr)
 			results = append(results, PortHealth{
 				Service:  c.service,
 				Address:  addr,
