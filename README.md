@@ -8,7 +8,7 @@ DevGatewayDNS is an integrated development tool that enables all clients on a lo
 
 Key features:
 
-- **Reverse Proxy**: Routes HTTP/HTTPS requests to backend services based on hostname. Supports SNI-based routing, automatic header/cookie handling.
+- **Reverse Proxy**: Routes HTTP/HTTPS requests to backend services based on hostname. Supports SNI-based routing, wildcard subdomains (*.example.com), automatic header/cookie handling.
 - **DNS Server**: Automatically generates A records linked to proxy rules, manual record management, and per-NIC upstream DNS forwarding.
 - **Forward Proxy**: Provides an HTTP proxy for clients that cannot change DNS settings (e.g., iOS devices).
 - **SSL Certificate Management**: Automatic self-signed CA certificate generation, per-host certificate issuance, and QR code distribution for mobile devices.
