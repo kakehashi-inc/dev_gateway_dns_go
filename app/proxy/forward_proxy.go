@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"dev_gateway_dns/app/models"
+	"dev_gateway_dns/app/modules"
 )
 
 // ForwardProxy handles HTTP forward proxy for clients that cannot change DNS settings.
 type ForwardProxy struct {
 	mu            sync.RWMutex
-	rules         map[string]*models.ProxyRule
+	rules         map[string]*models.ProxyRule // hostname -> rule (exact match)
+	wildcardRules map[string]*models.ProxyRule // base domain -> rule (wildcard)
 	servers       []*http.Server
 	listenAddrs   []string
 	port          int
@@ -36,6 +38,7 @@ func NewForwardProxy(listenAddrs []string, port int,
 ) *ForwardProxy {
 	return &ForwardProxy{
 		rules:         make(map[string]*models.ProxyRule),
+		wildcardRules: make(map[string]*models.ProxyRule),
 		listenAddrs:   listenAddrs,
 		port:          port,
 		getCert:       getCert,
@@ -48,17 +51,34 @@ func NewForwardProxy(listenAddrs []string, port int,
 func (fp *ForwardProxy) SetRules(rules map[string]*models.ProxyRule) {
 	fp.mu.Lock()
 	defer fp.mu.Unlock()
-	fp.rules = rules
+	fp.rules = make(map[string]*models.ProxyRule)
+	fp.wildcardRules = make(map[string]*models.ProxyRule)
+	for _, rule := range rules {
+		if modules.IsWildcard(rule.Hostname) {
+			fp.wildcardRules[modules.WildcardBase(rule.Hostname)] = rule
+		} else {
+			fp.rules[rule.Hostname] = rule
+		}
+	}
 }
 
 // UpdateRule updates a single rule.
 func (fp *ForwardProxy) UpdateRule(rule *models.ProxyRule) {
 	fp.mu.Lock()
 	defer fp.mu.Unlock()
-	if rule.Enabled {
-		fp.rules[rule.Hostname] = rule
+	if modules.IsWildcard(rule.Hostname) {
+		base := modules.WildcardBase(rule.Hostname)
+		if rule.Enabled {
+			fp.wildcardRules[base] = rule
+		} else {
+			delete(fp.wildcardRules, base)
+		}
 	} else {
-		delete(fp.rules, rule.Hostname)
+		if rule.Enabled {
+			fp.rules[rule.Hostname] = rule
+		} else {
+			delete(fp.rules, rule.Hostname)
+		}
 	}
 }
 
@@ -66,7 +86,25 @@ func (fp *ForwardProxy) UpdateRule(rule *models.ProxyRule) {
 func (fp *ForwardProxy) RemoveRule(hostname string) {
 	fp.mu.Lock()
 	defer fp.mu.Unlock()
-	delete(fp.rules, hostname)
+	if modules.IsWildcard(hostname) {
+		delete(fp.wildcardRules, modules.WildcardBase(hostname))
+	} else {
+		delete(fp.rules, hostname)
+	}
+}
+
+// lookupRule finds a matching rule: exact match first, then wildcard fallback.
+func (fp *ForwardProxy) lookupRule(hostname string) (*models.ProxyRule, bool) {
+	if rule, ok := fp.rules[hostname]; ok {
+		return rule, true
+	}
+	parent := modules.WildcardDomain(hostname)
+	if parent != "" {
+		if rule, ok := fp.wildcardRules[parent]; ok {
+			return rule, true
+		}
+	}
+	return nil, false
 }
 
 // Start begins listening for forward proxy connections on each listen address.
@@ -112,7 +150,7 @@ func (fp *ForwardProxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	hostname := extractHostname(r.Host)
 
 	fp.mu.RLock()
-	rule, matched := fp.rules[hostname]
+	rule, matched := fp.lookupRule(hostname)
 	fp.mu.RUnlock()
 
 	if matched && rule.Enabled {
@@ -180,7 +218,7 @@ func (fp *ForwardProxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	hostname := extractHostname(r.Host)
 
 	fp.mu.RLock()
-	rule, matched := fp.rules[hostname]
+	rule, matched := fp.lookupRule(hostname)
 	fp.mu.RUnlock()
 
 	if matched && rule.Enabled {

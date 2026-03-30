@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 )
@@ -58,6 +59,7 @@ func (m *Manager) Init() error {
 
 // GetCertificate returns a TLS certificate for the given hostname.
 // It loads from cache, then DB, then generates a new one.
+// For non-wildcard hostnames, it also checks for a matching wildcard certificate.
 func (m *Manager) GetCertificate(hostname string) (*tls.Certificate, error) {
 	if hostname == "" {
 		return nil, fmt.Errorf("empty hostname")
@@ -67,6 +69,16 @@ func (m *Manager) GetCertificate(hostname string) (*tls.Certificate, error) {
 	if cert, ok := m.cache[hostname]; ok {
 		m.mu.RUnlock()
 		return cert, nil
+	}
+	// Try wildcard cert in cache
+	if !strings.HasPrefix(hostname, "*.") {
+		if idx := strings.Index(hostname, "."); idx >= 0 {
+			wildcardName := "*." + hostname[idx+1:]
+			if cert, ok := m.cache[wildcardName]; ok {
+				m.mu.RUnlock()
+				return cert, nil
+			}
+		}
 	}
 	m.mu.RUnlock()
 
@@ -299,6 +311,27 @@ func (m *Manager) loadOrGenerateHostCert(hostname string) (*tls.Certificate, err
 		}
 	}
 
+	// For non-wildcard hostnames, try wildcard cert in DB
+	if !strings.HasPrefix(hostname, "*.") {
+		if idx := strings.Index(hostname, "."); idx >= 0 {
+			wildcardName := "*." + hostname[idx+1:]
+			err := m.db.QueryRow(
+				"SELECT cert_pem, key_pem, expires_at FROM host_certificates WHERE hostname = ?",
+				wildcardName,
+			).Scan(&certPEM, &keyPEM, &expiresAt)
+
+			if err == nil && time.Now().Before(expiresAt) {
+				tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+				if err == nil {
+					m.mu.Lock()
+					m.cache[wildcardName] = &tlsCert
+					m.mu.Unlock()
+					return &tlsCert, nil
+				}
+			}
+		}
+	}
+
 	return m.generateHostCert(hostname)
 }
 
@@ -325,15 +358,22 @@ func (m *Manager) generateHostCert(hostname string) (*tls.Certificate, error) {
 	now := time.Now()
 	expiresAt := now.Add(365 * 24 * time.Hour)
 
+	dnsNames := []string{hostname}
+	if strings.HasPrefix(hostname, "*.") {
+		base := hostname[2:]
+		dnsNames = []string{hostname, base}
+	}
+
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName: hostname,
 		},
-		DNSNames:  []string{hostname},
-		NotBefore: now,
-		NotAfter:  expiresAt,
-		KeyUsage:  x509.KeyUsageDigitalSignature,
+		DNSNames:              dnsNames,
+		NotBefore:             now,
+		NotAfter:              expiresAt,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 		},

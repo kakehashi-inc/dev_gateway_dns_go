@@ -15,13 +15,15 @@ import (
 	"time"
 
 	"dev_gateway_dns/app/models"
+	"dev_gateway_dns/app/modules"
 )
 
 // ReverseProxy manages HTTP/HTTPS reverse proxy routing.
 type ReverseProxy struct {
 	db            *sql.DB
 	mu            sync.RWMutex
-	rules         map[string]*models.ProxyRule // hostname -> rule
+	rules         map[string]*models.ProxyRule // hostname -> rule (exact match)
+	wildcardRules map[string]*models.ProxyRule // base domain -> rule (wildcard)
 	servers       []*http.Server
 	listenAddrs   []string
 	httpPort      int
@@ -40,6 +42,7 @@ func NewReverseProxy(db *sql.DB, listenAddrs []string, httpPort, httpsPort int,
 	return &ReverseProxy{
 		db:            db,
 		rules:         make(map[string]*models.ProxyRule),
+		wildcardRules: make(map[string]*models.ProxyRule),
 		listenAddrs:   listenAddrs,
 		httpPort:      httpPort,
 		httpsPort:     httpsPort,
@@ -62,6 +65,7 @@ func (rp *ReverseProxy) LoadRules() error {
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
 	rp.rules = make(map[string]*models.ProxyRule)
+	rp.wildcardRules = make(map[string]*models.ProxyRule)
 
 	for rows.Next() {
 		var rule models.ProxyRule
@@ -69,7 +73,12 @@ func (rp *ReverseProxy) LoadRules() error {
 			&rule.BackendPort, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt); err != nil {
 			continue
 		}
-		rp.rules[rule.Hostname] = &rule
+		r := &rule
+		if modules.IsWildcard(rule.Hostname) {
+			rp.wildcardRules[modules.WildcardBase(rule.Hostname)] = r
+		} else {
+			rp.rules[rule.Hostname] = r
+		}
 	}
 	return nil
 }
@@ -78,10 +87,19 @@ func (rp *ReverseProxy) LoadRules() error {
 func (rp *ReverseProxy) UpdateRule(rule *models.ProxyRule) {
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
-	if rule.Enabled {
-		rp.rules[rule.Hostname] = rule
+	if modules.IsWildcard(rule.Hostname) {
+		base := modules.WildcardBase(rule.Hostname)
+		if rule.Enabled {
+			rp.wildcardRules[base] = rule
+		} else {
+			delete(rp.wildcardRules, base)
+		}
 	} else {
-		delete(rp.rules, rule.Hostname)
+		if rule.Enabled {
+			rp.rules[rule.Hostname] = rule
+		} else {
+			delete(rp.rules, rule.Hostname)
+		}
 	}
 }
 
@@ -89,7 +107,25 @@ func (rp *ReverseProxy) UpdateRule(rule *models.ProxyRule) {
 func (rp *ReverseProxy) RemoveRule(hostname string) {
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
-	delete(rp.rules, hostname)
+	if modules.IsWildcard(hostname) {
+		delete(rp.wildcardRules, modules.WildcardBase(hostname))
+	} else {
+		delete(rp.rules, hostname)
+	}
+}
+
+// lookupRule finds a matching rule: exact match first, then wildcard fallback.
+func (rp *ReverseProxy) lookupRule(hostname string) (*models.ProxyRule, bool) {
+	if rule, ok := rp.rules[hostname]; ok {
+		return rule, true
+	}
+	parent := modules.WildcardDomain(hostname)
+	if parent != "" {
+		if rule, ok := rp.wildcardRules[parent]; ok {
+			return rule, true
+		}
+	}
+	return nil, false
 }
 
 // Start starts the HTTP and HTTPS proxy servers.
@@ -151,7 +187,7 @@ func (rp *ReverseProxy) proxyHandler(source string) http.Handler {
 		hostname := extractHostname(r.Host)
 
 		rp.mu.RLock()
-		rule, ok := rp.rules[hostname]
+		rule, ok := rp.lookupRule(hostname)
 		rp.mu.RUnlock()
 
 		if r.URL.Path == "/health" {

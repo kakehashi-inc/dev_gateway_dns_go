@@ -15,16 +15,24 @@ type FormData = { hostname: string; backend_protocol: string; backend_ip: string
 
 const emptyForm: FormData = { hostname: "", backend_protocol: "http", backend_ip: "", backend_port: 8080 };
 
+const hostnamePattern = /^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$/;
+
+function isValidHostname(hostname: string): boolean {
+  return hostnamePattern.test(hostname);
+}
+
 export default function ProxySettings() {
   const { t } = useTranslation();
   const { data: rules, refetch } = useApi<ProxyRule[]>("/proxy/rules");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
+  const [hostnameError, setHostnameError] = useState(false);
 
   const openAdd = () => {
     setEditingId(null);
     setForm({ ...emptyForm });
+    setHostnameError(false);
     setShowForm(true);
   };
 
@@ -36,10 +44,16 @@ export default function ProxySettings() {
       backend_ip: rule.backend_ip || "",
       backend_port: rule.backend_port,
     });
+    setHostnameError(false);
     setShowForm(true);
   };
 
   const saveRule = async () => {
+    if (!isValidHostname(form.hostname)) {
+      setHostnameError(true);
+      return;
+    }
+    setHostnameError(false);
     const body = { ...form, backend_ip: form.backend_ip || null, enabled: true };
     if (editingId !== null) {
       await apiPut(`/proxy/rules/${editingId}`, body);
@@ -56,6 +70,7 @@ export default function ProxySettings() {
     setShowForm(false);
     setEditingId(null);
     setForm({ ...emptyForm });
+    setHostnameError(false);
   };
 
   const deleteRule = async (id: number) => {
@@ -79,12 +94,21 @@ export default function ProxySettings() {
 
       {showForm && (
         <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-3">
-          <input
-            placeholder={t("proxy.hostname")}
-            value={form.hostname}
-            onChange={(e) => setForm({ ...form, hostname: e.target.value })}
-            className="w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
-          />
+          <div>
+            <input
+              placeholder={t("proxy.hostnamePlaceholder")}
+              value={form.hostname}
+              onChange={(e) => {
+                setForm({ ...form, hostname: e.target.value });
+                if (hostnameError) setHostnameError(false);
+              }}
+              className={`w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600 ${hostnameError ? "border-red-500" : ""}`}
+            />
+            {hostnameError && (
+              <p className="text-red-500 text-xs mt-1">{t("proxy.hostnameInvalid")}</p>
+            )}
+            <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">{t("proxy.hostnameHint")}</p>
+          </div>
           <div className="flex gap-2">
             <select
               value={form.backend_protocol}
@@ -133,7 +157,14 @@ export default function ProxySettings() {
         <tbody>
           {rules?.map((rule) => (
             <tr key={rule.id} className="border-t dark:border-gray-700">
-              <td className="p-2 font-mono">{rule.hostname}</td>
+              <td className="p-2 font-mono">
+                {rule.hostname}
+                {rule.hostname.startsWith("*.") && (
+                  <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 rounded text-xs">
+                    wildcard
+                  </span>
+                )}
+              </td>
               <td className="p-2">{rule.backend_protocol}</td>
               <td className="p-2">{rule.backend_ip || t("proxy.ipAuto")}</td>
               <td className="p-2">{rule.backend_port}</td>

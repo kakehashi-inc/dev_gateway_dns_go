@@ -408,6 +408,95 @@ func TestListCertificates_AfterRegenerate(t *testing.T) {
 	}
 }
 
+func TestGetCertificate_BasicConstraintsValid(t *testing.T) {
+	mgr := setupManager(t)
+
+	tlsCert, err := mgr.GetCertificate("bc.local")
+	if err != nil {
+		t.Fatalf("GetCertificate failed: %v", err)
+	}
+
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		t.Fatalf("failed to parse leaf: %v", err)
+	}
+
+	if !leaf.BasicConstraintsValid {
+		t.Error("host certificate BasicConstraintsValid should be true")
+	}
+	if leaf.IsCA {
+		t.Error("host certificate IsCA should be false")
+	}
+}
+
+func TestGetCertificate_WildcardDNSNames(t *testing.T) {
+	mgr := setupManager(t)
+
+	tlsCert, err := mgr.GetCertificate("*.example.local")
+	if err != nil {
+		t.Fatalf("GetCertificate failed: %v", err)
+	}
+
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		t.Fatalf("failed to parse leaf: %v", err)
+	}
+
+	hasWildcard := false
+	hasBase := false
+	for _, name := range leaf.DNSNames {
+		if name == "*.example.local" {
+			hasWildcard = true
+		}
+		if name == "example.local" {
+			hasBase = true
+		}
+	}
+	if !hasWildcard {
+		t.Errorf("wildcard cert missing *.example.local in DNSNames: %v", leaf.DNSNames)
+	}
+	if !hasBase {
+		t.Errorf("wildcard cert missing example.local in DNSNames: %v", leaf.DNSNames)
+	}
+
+	// Verify cert is valid for a subdomain
+	roots := x509.NewCertPool()
+	roots.AddCert(mgr.caCert)
+	opts := x509.VerifyOptions{
+		Roots:   roots,
+		DNSName: "sub.example.local",
+	}
+	if _, err := leaf.Verify(opts); err != nil {
+		t.Errorf("wildcard cert verification for sub.example.local failed: %v", err)
+	}
+}
+
+func TestGetCertificate_WildcardFallbackLookup(t *testing.T) {
+	mgr := setupManager(t)
+
+	// Generate wildcard cert
+	_, err := mgr.GetCertificate("*.fallback.local")
+	if err != nil {
+		t.Fatalf("failed to generate wildcard cert: %v", err)
+	}
+
+	// Request cert for a subdomain — should return the wildcard cert, not generate a new one
+	tlsCert, err := mgr.GetCertificate("app.fallback.local")
+	if err != nil {
+		t.Fatalf("GetCertificate for subdomain failed: %v", err)
+	}
+
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		t.Fatalf("failed to parse leaf: %v", err)
+	}
+
+	// The returned cert should be the wildcard cert
+	if leaf.Subject.CommonName != "*.fallback.local" {
+		t.Errorf("expected wildcard cert CN *.fallback.local, got %q", leaf.Subject.CommonName)
+	}
+}
+
 func TestGetCertificate_MultipleHostsIndependent(t *testing.T) {
 	mgr := setupManager(t)
 

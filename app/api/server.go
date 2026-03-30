@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -195,6 +196,13 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// validHostnameRe matches valid hostnames: exact FQDN or *.domain.tld wildcard.
+var validHostnameRe = regexp.MustCompile(`^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$`)
+
+func isValidProxyHostname(hostname string) bool {
+	return validHostnameRe.MatchString(hostname)
+}
+
 // --- Proxy Rules ---
 
 func (s *Server) handleProxyRules(w http.ResponseWriter, r *http.Request) {
@@ -237,6 +245,10 @@ func (s *Server) createProxyRule(w http.ResponseWriter, r *http.Request) {
 	var rule models.ProxyRule
 	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if !isValidProxyHostname(rule.Hostname) {
+		writeError(w, http.StatusBadRequest, "invalid hostname format")
 		return
 	}
 
@@ -302,6 +314,10 @@ func (s *Server) updateProxyRule(w http.ResponseWriter, r *http.Request, id int6
 	var rule models.ProxyRule
 	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if !isValidProxyHostname(rule.Hostname) {
+		writeError(w, http.StatusBadRequest, "invalid hostname format")
 		return
 	}
 

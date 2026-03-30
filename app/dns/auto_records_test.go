@@ -158,3 +158,85 @@ func TestAutoRecordMap_ConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 }
+
+// --- Wildcard tests ---
+
+func TestAutoRecordMap_WildcardSetAndLookup(t *testing.T) {
+	m := NewAutoRecordMap()
+	m.Set("*.example.com", []string{"10.0.0.1"})
+
+	ips, ok := m.Lookup("sub.example.com")
+	if !ok {
+		t.Fatal("expected wildcard match for sub.example.com")
+	}
+	if len(ips) != 1 || ips[0] != "10.0.0.1" {
+		t.Errorf("unexpected IPs: %v", ips)
+	}
+}
+
+func TestAutoRecordMap_ExactPriorityOverWildcard(t *testing.T) {
+	m := NewAutoRecordMap()
+	m.Set("*.example.com", []string{"10.0.0.1"})
+	m.Set("app.example.com", []string{"10.0.0.2"})
+
+	// Exact match should win
+	ips, ok := m.Lookup("app.example.com")
+	if !ok {
+		t.Fatal("expected to find app.example.com")
+	}
+	if ips[0] != "10.0.0.2" {
+		t.Errorf("expected exact match IP 10.0.0.2, got %s", ips[0])
+	}
+
+	// Wildcard fallback for other subdomains
+	ips, ok = m.Lookup("other.example.com")
+	if !ok {
+		t.Fatal("expected wildcard match for other.example.com")
+	}
+	if ips[0] != "10.0.0.1" {
+		t.Errorf("expected wildcard IP 10.0.0.1, got %s", ips[0])
+	}
+}
+
+func TestAutoRecordMap_WildcardNoMatch(t *testing.T) {
+	m := NewAutoRecordMap()
+	m.Set("*.example.com", []string{"10.0.0.1"})
+
+	_, ok := m.Lookup("other.domain")
+	if ok {
+		t.Error("expected no match for other.domain")
+	}
+
+	_, ok = m.Lookup("localhost")
+	if ok {
+		t.Error("expected no match for localhost (no dots)")
+	}
+}
+
+func TestAutoRecordMap_WildcardDelete(t *testing.T) {
+	m := NewAutoRecordMap()
+	m.Set("*.del.test", []string{"10.0.0.1"})
+	m.Delete("*.del.test")
+
+	_, ok := m.Lookup("sub.del.test")
+	if ok {
+		t.Error("expected no match after wildcard delete")
+	}
+}
+
+func TestAutoRecordMap_AllIncludesWildcards(t *testing.T) {
+	m := NewAutoRecordMap()
+	m.Set("exact.test", []string{"1.1.1.1"})
+	m.Set("*.wc.test", []string{"2.2.2.2"})
+
+	all := m.All()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(all))
+	}
+	if _, ok := all["exact.test"]; !ok {
+		t.Error("missing exact.test in All()")
+	}
+	if _, ok := all["*.wc.test"]; !ok {
+		t.Error("missing *.wc.test in All()")
+	}
+}

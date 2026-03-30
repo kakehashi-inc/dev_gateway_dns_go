@@ -444,3 +444,147 @@ func TestForwardProxy_RemoveRule_NonExistent(t *testing.T) {
 	// Should not panic
 	fp.RemoveRule("nonexistent.test")
 }
+
+// --- Wildcard matching tests ---
+
+func TestReverseProxy_LoadRules_Wildcard(t *testing.T) {
+	db := setupTestDB(t)
+
+	db.Exec(`INSERT INTO proxy_rules (hostname, backend_protocol, backend_port, enabled) VALUES (?, ?, ?, ?)`,
+		"*.example.test", "http", 3000, true)
+	db.Exec(`INSERT INTO proxy_rules (hostname, backend_protocol, backend_port, enabled) VALUES (?, ?, ?, ?)`,
+		"app.test", "http", 4000, true)
+
+	rp := newTestReverseProxy(db)
+	if err := rp.LoadRules(); err != nil {
+		t.Fatalf("LoadRules() error: %v", err)
+	}
+
+	if len(rp.rules) != 1 {
+		t.Errorf("expected 1 exact rule, got %d", len(rp.rules))
+	}
+	if len(rp.wildcardRules) != 1 {
+		t.Errorf("expected 1 wildcard rule, got %d", len(rp.wildcardRules))
+	}
+	if _, ok := rp.wildcardRules["example.test"]; !ok {
+		t.Error("expected wildcard rule for example.test")
+	}
+}
+
+func TestReverseProxy_LookupRule_ExactPriority(t *testing.T) {
+	db := setupTestDB(t)
+	rp := newTestReverseProxy(db)
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.example.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+	rp.UpdateRule(&models.ProxyRule{Hostname: "app.example.test", BackendProtocol: "http", BackendPort: 4000, Enabled: true})
+
+	rp.mu.RLock()
+	rule, ok := rp.lookupRule("app.example.test")
+	rp.mu.RUnlock()
+
+	if !ok {
+		t.Fatal("expected to find rule for app.example.test")
+	}
+	if rule.BackendPort != 4000 {
+		t.Errorf("expected exact rule (port 4000), got port %d", rule.BackendPort)
+	}
+}
+
+func TestReverseProxy_LookupRule_WildcardFallback(t *testing.T) {
+	db := setupTestDB(t)
+	rp := newTestReverseProxy(db)
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.example.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+
+	rp.mu.RLock()
+	rule, ok := rp.lookupRule("foo.example.test")
+	rp.mu.RUnlock()
+
+	if !ok {
+		t.Fatal("expected wildcard match for foo.example.test")
+	}
+	if rule.BackendPort != 3000 {
+		t.Errorf("expected wildcard rule (port 3000), got port %d", rule.BackendPort)
+	}
+}
+
+func TestReverseProxy_LookupRule_NoMatch(t *testing.T) {
+	db := setupTestDB(t)
+	rp := newTestReverseProxy(db)
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.example.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+
+	rp.mu.RLock()
+	_, ok := rp.lookupRule("other.domain")
+	rp.mu.RUnlock()
+
+	if ok {
+		t.Error("expected no match for other.domain")
+	}
+}
+
+func TestReverseProxy_UpdateRule_Wildcard(t *testing.T) {
+	db := setupTestDB(t)
+	rp := newTestReverseProxy(db)
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.wc.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+	if _, ok := rp.wildcardRules["wc.test"]; !ok {
+		t.Error("expected wildcard rule for wc.test")
+	}
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.wc.test", BackendProtocol: "http", BackendPort: 3000, Enabled: false})
+	if _, ok := rp.wildcardRules["wc.test"]; ok {
+		t.Error("expected wildcard rule to be removed when disabled")
+	}
+}
+
+func TestReverseProxy_RemoveRule_Wildcard(t *testing.T) {
+	db := setupTestDB(t)
+	rp := newTestReverseProxy(db)
+
+	rp.UpdateRule(&models.ProxyRule{Hostname: "*.rm.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+	rp.RemoveRule("*.rm.test")
+	if _, ok := rp.wildcardRules["rm.test"]; ok {
+		t.Error("expected wildcard rule to be removed")
+	}
+}
+
+func TestForwardProxy_SetRules_Wildcard(t *testing.T) {
+	fp := newTestForwardProxy()
+
+	rules := map[string]*models.ProxyRule{
+		"exact.test":    {Hostname: "exact.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true},
+		"*.wc.test":     {Hostname: "*.wc.test", BackendProtocol: "http", BackendPort: 4000, Enabled: true},
+	}
+	fp.SetRules(rules)
+
+	if len(fp.rules) != 1 {
+		t.Errorf("expected 1 exact rule, got %d", len(fp.rules))
+	}
+	if len(fp.wildcardRules) != 1 {
+		t.Errorf("expected 1 wildcard rule, got %d", len(fp.wildcardRules))
+	}
+}
+
+func TestForwardProxy_LookupRule_WildcardFallback(t *testing.T) {
+	fp := newTestForwardProxy()
+
+	fp.UpdateRule(&models.ProxyRule{Hostname: "*.example.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true})
+	fp.UpdateRule(&models.ProxyRule{Hostname: "app.example.test", BackendProtocol: "http", BackendPort: 4000, Enabled: true})
+
+	fp.mu.RLock()
+	// Exact match
+	rule, ok := fp.lookupRule("app.example.test")
+	fp.mu.RUnlock()
+	if !ok || rule.BackendPort != 4000 {
+		t.Errorf("expected exact match (port 4000)")
+	}
+
+	fp.mu.RLock()
+	// Wildcard fallback
+	rule, ok = fp.lookupRule("other.example.test")
+	fp.mu.RUnlock()
+	if !ok || rule.BackendPort != 3000 {
+		t.Errorf("expected wildcard match (port 3000)")
+	}
+}
