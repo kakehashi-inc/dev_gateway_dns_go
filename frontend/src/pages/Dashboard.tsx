@@ -42,6 +42,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">{t("dashboard.title")}</h2>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{t("dashboard.description")}</p>
 
       {overview.data && (
         <div className="grid grid-cols-3 gap-4">
@@ -61,7 +62,7 @@ export default function Dashboard() {
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded p-4 shadow">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <h3 className="font-semibold">{t("dashboard.health")}</h3>
           <button
             onClick={health.refetch}
@@ -70,6 +71,7 @@ export default function Dashboard() {
             {t("dashboard.recheck")}
           </button>
         </div>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t("dashboard.healthDescription")}</p>
         <table className="w-full text-sm">
           <tbody>
             {[...healthByService.entries()].map(([service, items]) => (
@@ -98,7 +100,8 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded p-4 shadow">
-        <h3 className="font-semibold mb-2">{t("dashboard.interfaces")}</h3>
+        <h3 className="font-semibold mb-1">{t("dashboard.interfaces")}</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t("dashboard.interfacesDescription")}</p>
         <table className="w-full text-sm">
           <tbody>
             {nics.data?.map((nic) => {

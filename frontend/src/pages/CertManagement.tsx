@@ -21,9 +21,14 @@ export default function CertManagement() {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">{t("certs.title")}</h2>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{t("certs.description")}</p>
 
-      <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-3">
-        <h3 className="font-semibold">{t("certs.ca")}</h3>
+      <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-4">
+        <div>
+          <h3 className="font-semibold">{t("certs.ca")}</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t("certs.caDescription")}</p>
+        </div>
+
         <div className="flex gap-2 flex-wrap">
           <a
             href="/api/v1/certs/ca/download?format=pem"
@@ -50,52 +55,51 @@ export default function CertManagement() {
             {t("certs.qrcode")}
           </button>
         </div>
+
         {showQR && (
-          <div className="mt-2">
+          <div>
             <img src="/api/v1/certs/ca/qrcode" alt="CA QR Code" className="w-64 h-64" />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t("certs.qrcodeDescription")}</p>
           </div>
         )}
-        <div className="mt-2 space-y-2 text-sm">
+
+        <div className="space-y-2 text-sm">
           <h4 className="font-semibold">{t("certs.installGuide")}</h4>
-          <p>
-            <strong>iOS:</strong> {t("certs.guide.ios")}
-          </p>
-          <p>
-            <strong>Android:</strong> {t("certs.guide.android")}
-          </p>
-          <p>
-            <strong>Windows:</strong> {t("certs.guide.windows")}
-          </p>
-          <p>
-            <strong>macOS:</strong> {t("certs.guide.macos")}
-          </p>
+          <p><strong>iOS:</strong> {t("certs.guide.ios")}</p>
+          <p><strong>Android:</strong> {t("certs.guide.android")}</p>
+          <p><strong>Windows:</strong> {t("certs.guide.windows")}</p>
+          <p><strong>macOS:</strong> {t("certs.guide.macos")}</p>
         </div>
       </div>
 
-      <table className="w-full text-sm bg-white dark:bg-gray-800 rounded shadow">
-        <thead>
-          <tr className="border-b dark:border-gray-700 text-left">
-            <th className="p-2">{t("certs.hostname")}</th>
-            <th className="p-2">{t("certs.expires")}</th>
-            <th className="p-2">{t("certs.created")}</th>
-            <th className="p-2">{t("proxy.actions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {certs?.map((cert) => (
-            <tr key={cert.hostname} className="border-t dark:border-gray-700">
-              <td className="p-2 font-mono">{cert.hostname}</td>
-              <td className="p-2">{new Date(cert.expires_at).toLocaleDateString()}</td>
-              <td className="p-2">{new Date(cert.created_at).toLocaleDateString()}</td>
-              <td className="p-2">
-                <button onClick={() => regenerate(cert.hostname)} className="text-blue-600 text-xs hover:underline">
-                  {t("certs.regenerate")}
-                </button>
-              </td>
+      <div className="bg-white dark:bg-gray-800 rounded p-4 shadow">
+        <h3 className="font-semibold mb-1">{t("certs.hostCerts")}</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t("certs.hostCertsDescription")}</p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b dark:border-gray-700 text-left">
+              <th className="p-2">{t("certs.hostname")}</th>
+              <th className="p-2">{t("certs.expires")}</th>
+              <th className="p-2">{t("certs.created")}</th>
+              <th className="p-2">{t("certs.actions")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {certs?.map((cert) => (
+              <tr key={cert.hostname} className="border-t dark:border-gray-700">
+                <td className="p-2 font-mono">{cert.hostname}</td>
+                <td className="p-2">{new Date(cert.expires_at).toLocaleDateString()}</td>
+                <td className="p-2">{new Date(cert.created_at).toLocaleDateString()}</td>
+                <td className="p-2">
+                  <button onClick={() => regenerate(cert.hostname)} className="text-blue-600 text-xs hover:underline">
+                    {t("certs.regenerate")}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

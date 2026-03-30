@@ -21,6 +21,8 @@ function isValidHostname(hostname: string): boolean {
   return hostnamePattern.test(hostname);
 }
 
+const hintClass = "text-gray-500 dark:text-gray-400 text-xs mt-1";
+
 export default function ProxySettings() {
   const { t } = useTranslation();
   const { data: rules, refetch } = useApi<ProxyRule[]>("/proxy/rules");
@@ -92,9 +94,12 @@ export default function ProxySettings() {
         </button>
       </div>
 
+      <p className="text-sm text-gray-600 dark:text-gray-400">{t("proxy.description")}</p>
+
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-3">
+        <div className="bg-white dark:bg-gray-800 rounded p-4 shadow space-y-4">
           <div>
+            <label className="block text-sm font-medium mb-1">{t("proxy.hostname")}</label>
             <input
               placeholder={t("proxy.hostnamePlaceholder")}
               value={form.hostname}
@@ -104,34 +109,49 @@ export default function ProxySettings() {
               }}
               className={`w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600 ${hostnameError ? "border-red-500" : ""}`}
             />
-            {hostnameError && (
+            {hostnameError ? (
               <p className="text-red-500 text-xs mt-1">{t("proxy.hostnameInvalid")}</p>
+            ) : (
+              <p className={hintClass}>{t("proxy.hostnameHint")}</p>
             )}
-            <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">{t("proxy.hostnameHint")}</p>
           </div>
-          <div className="flex gap-2">
-            <select
-              value={form.backend_protocol}
-              onChange={(e) => setForm({ ...form, backend_protocol: e.target.value })}
-              className="border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
-            >
-              <option value="http">HTTP</option>
-              <option value="https">HTTPS</option>
-            </select>
-            <input
-              placeholder={t("proxy.ipAuto")}
-              value={form.backend_ip}
-              onChange={(e) => setForm({ ...form, backend_ip: e.target.value })}
-              className="flex-1 border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <input
-              type="number"
-              placeholder={t("proxy.port")}
-              value={form.backend_port}
-              onChange={(e) => setForm({ ...form, backend_port: parseInt(e.target.value) || 0 })}
-              className="w-24 border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
-            />
+
+          <div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t("proxy.protocol")}</label>
+                <select
+                  value={form.backend_protocol}
+                  onChange={(e) => setForm({ ...form, backend_protocol: e.target.value })}
+                  className="w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                >
+                  <option value="http">HTTP</option>
+                  <option value="https">HTTPS</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t("proxy.ip")}</label>
+                <input
+                  placeholder="192.168.1.100"
+                  value={form.backend_ip}
+                  onChange={(e) => setForm({ ...form, backend_ip: e.target.value })}
+                  className="w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t("proxy.port")}</label>
+                <input
+                  type="number"
+                  placeholder="8080"
+                  value={form.backend_port}
+                  onChange={(e) => setForm({ ...form, backend_port: parseInt(e.target.value) || 0 })}
+                  className="w-full border rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                />
+              </div>
+            </div>
+            <p className={hintClass}>{t("proxy.ipHint")}</p>
           </div>
+
           <div className="flex gap-2">
             <button onClick={saveRule} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">
               {t("proxy.save")}
@@ -165,13 +185,13 @@ export default function ProxySettings() {
                   </span>
                 )}
               </td>
-              <td className="p-2">{rule.backend_protocol}</td>
-              <td className="p-2">{rule.backend_ip || t("proxy.ipAuto")}</td>
+              <td className="p-2">{rule.backend_protocol.toUpperCase()}</td>
+              <td className="p-2">{rule.backend_ip || t("proxy.ipAutoLabel")}</td>
               <td className="p-2">{rule.backend_port}</td>
               <td className="p-2">
                 <button
                   onClick={() => toggleRule(rule.id)}
-                  className={`px-2 py-0.5 rounded text-xs ${rule.enabled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"}`}
+                  className={`px-2 py-0.5 rounded text-xs ${rule.enabled ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"}`}
                 >
                   {rule.enabled ? "ON" : "OFF"}
                 </button>
