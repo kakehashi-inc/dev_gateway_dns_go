@@ -20,6 +20,17 @@ DevGatewayDNSは、社内LANにおいてWiFi接続のスマートフォン等を
 
 ポート53/80/443のバインドに管理者権限が必要です。サービスとして登録すると管理者権限で実行されます。
 
+### PATHの設定（推奨）
+
+`devgatewaydns` バイナリが配置されたディレクトリをPATH環境変数に追加すると、どこからでもコマンドを実行できます。
+
+```bash
+# 例: バイナリが /opt/devgatewaydns にある場合
+export PATH="/opt/devgatewaydns:$PATH"
+```
+
+Windowsの場合は、システムのプロパティ > 環境変数から、バイナリのあるディレクトリをPATHに追加してください。
+
 ### Step 1. 動作確認
 
 フォアグラウンドで起動し、正常に動作することを確認します（Ctrl+Cで停止）。
@@ -27,7 +38,7 @@ DevGatewayDNSは、社内LANにおいてWiFi接続のスマートフォン等を
 ```bash
 # Windows: 管理者として実行したコマンドプロンプトで実行
 # macOS/Linux:
-sudo ./devgatewaydns serve
+sudo devgatewaydns serve
 ```
 
 管理UIが `http://<サーバーIP>:9090` で開けることを確認してください。
@@ -39,17 +50,17 @@ sudo ./devgatewaydns serve
 ```bash
 # Windows: 管理者として実行したコマンドプロンプトで実行
 # macOS/Linux:
-sudo ./devgatewaydns install
-./devgatewaydns start
+sudo devgatewaydns install
+devgatewaydns start
 ```
 
 ### Step 3. サービス管理
 
 ```bash
-./devgatewaydns stop       # 停止
-./devgatewaydns start      # 開始
-./devgatewaydns status     # 状態確認
-./devgatewaydns uninstall  # 登録解除
+devgatewaydns stop       # 停止
+devgatewaydns start      # 開始
+devgatewaydns status     # 状態確認
+devgatewaydns uninstall  # 登録解除
 ```
 
 ### 起動オプション（serve / install 共通）
@@ -67,8 +78,8 @@ sudo ./devgatewaydns install
 例:
 
 ```bash
-./devgatewaydns serve --listen 192.168.1.10
-./devgatewaydns install --listen 192.168.1.10
+devgatewaydns serve --listen 192.168.1.10
+devgatewaydns install --listen 192.168.1.10
 ```
 
 ## 3. 開発者向けリファレンス

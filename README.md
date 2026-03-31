@@ -20,6 +20,17 @@ Key features:
 
 Administrator privileges are required for binding ports 53/80/443. Services run with administrator privileges automatically.
 
+### PATH Setup (Recommended)
+
+Add the directory containing the `devgatewaydns` binary to your PATH environment variable so you can run the command from anywhere.
+
+```bash
+# Example: If the binary is in /opt/devgatewaydns
+export PATH="/opt/devgatewaydns:$PATH"
+```
+
+On Windows, add the directory to the system PATH via System Properties > Environment Variables.
+
 ### Step 1. Verify
 
 Run in foreground to verify everything works (Ctrl+C to stop).
@@ -27,7 +38,7 @@ Run in foreground to verify everything works (Ctrl+C to stop).
 ```bash
 # Windows: Run from an Administrator command prompt
 # macOS/Linux:
-sudo ./devgatewaydns serve
+sudo devgatewaydns serve
 ```
 
 Confirm the Admin UI is accessible at `http://<server-ip>:9090`.
@@ -39,17 +50,17 @@ After verification, register as an OS service. The service runs with administrat
 ```bash
 # Windows: Run from an Administrator command prompt
 # macOS/Linux:
-sudo ./devgatewaydns install
-./devgatewaydns start
+sudo devgatewaydns install
+devgatewaydns start
 ```
 
 ### Step 3. Service Management
 
 ```bash
-./devgatewaydns stop       # Stop
-./devgatewaydns start      # Start
-./devgatewaydns status     # Status
-./devgatewaydns uninstall  # Unregister
+devgatewaydns stop       # Stop
+devgatewaydns start      # Start
+devgatewaydns status     # Status
+devgatewaydns uninstall  # Unregister
 ```
 
 ### Options (serve / install)
@@ -67,8 +78,8 @@ sudo ./devgatewaydns install
 Example:
 
 ```bash
-./devgatewaydns serve --listen 192.168.1.10
-./devgatewaydns install --listen 192.168.1.10
+devgatewaydns serve --listen 192.168.1.10
+devgatewaydns install --listen 192.168.1.10
 ```
 
 ## 3. Developer Reference
