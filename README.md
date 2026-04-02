@@ -84,16 +84,6 @@ devgatewaydns install --listen 192.168.1.10
 
 ## 3. Developer Reference
 
-### Development Rules
-
-- Developer documentation (except `README.md`) must be placed in the `Documents` directory.
-- Always run the linter after changes and apply appropriate fixes. If intentionally allowing a linter error, document the reason in a comment. **Builds are for releases only; running the linter is sufficient for debugging.**
-- When implementing models, place one file per table.
-- Reusable components must be implemented as separate files in the `modules` directory.
-- Temporary scripts (e.g., investigation scripts) must be placed in the `scripts` directory.
-- When creating or modifying models, update `Documents/テーブル定義.md`. Table definitions must be expressed as a table per database table, showing column names, types, and relations within the table.
-- When system behavior changes, update `Documents/システム仕様.md`.
-
 ### Firewall Configuration
 
 OS or security software firewalls may block incoming connections. If health checks on `--listen` IP addresses fail, allow incoming connections for the debug binary in your firewall settings:
