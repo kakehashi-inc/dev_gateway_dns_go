@@ -58,5 +58,6 @@ CRITICAL: You MUST read [README.md](README.md) BEFORE taking any action.
 - Temporary scripts (e.g., investigation scripts) must be placed in the `scripts` directory.
 - When creating or modifying models, update `Documents/テーブル定義.md`. Table definitions must be expressed as a table per database table, showing column names, types, and relations within the table.
 - When system behavior changes, update `Documents/システム仕様.md`.
+- When making notable changes, update `CHANGELOG.md` following the [Keep a Changelog](https://keepachangelog.com/) format. Entries must be written in English.
 </development_rules>
 </project_details>
