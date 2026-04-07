@@ -5,7 +5,7 @@ LINUX_AMD64=$(EXECUTABLE)_linux_amd64
 LINUX_ARM64=$(EXECUTABLE)_linux_arm64
 DARWIN_AMD64=$(EXECUTABLE)_macos_amd64
 DARWIN_ARM64=$(EXECUTABLE)_macos_arm64
-VERSION=v0.1.0
+VERSION=0.1.0
 
 LDFLAGS=-s -w -X main.version=$(VERSION)
 BIN_DIR=bin
@@ -15,12 +15,20 @@ FRONTEND_DIR=frontend
 ifeq ($(OS),Windows_NT)
     MKDIR = powershell -Command "New-Item -ItemType Directory -Force -Path $(BIN_DIR) | Out-Null"
     RM = powershell -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $(BIN_DIR)"
+    # Windows targets keep the .exe extension so they remain executable after extraction.
+    define ZIP_FILE
+	powershell -Command "Copy-Item -Force $(BIN_DIR)/$(1) $(BIN_DIR)/$(3); Compress-Archive -Force -Path $(BIN_DIR)/$(3) -DestinationPath $(BIN_DIR)/$(2); Remove-Item $(BIN_DIR)/$(3)"
+    endef
 else
     MKDIR = mkdir -p $(BIN_DIR)
     RM = rm -rf $(BIN_DIR)
+    # cp -p preserves the original file mode (including the executable bit) on the renamed copy.
+    define ZIP_FILE
+	cp -p $(BIN_DIR)/$(1) $(BIN_DIR)/$(3) && cd $(BIN_DIR) && zip -q $(2) $(3) && rm -f $(3)
+    endef
 endif
 
-.PHONY: all build windows linux darwin clean prepare frontend
+.PHONY: all build windows linux darwin clean prepare frontend pack
 
 all: build
 
@@ -53,6 +61,14 @@ $(eval $(call build-target,$(LINUX_AMD64),linux,amd64))
 $(eval $(call build-target,$(LINUX_ARM64),linux,arm64))
 $(eval $(call build-target,$(DARWIN_AMD64),darwin,amd64))
 $(eval $(call build-target,$(DARWIN_ARM64),darwin,arm64))
+
+pack:
+	$(call ZIP_FILE,$(WINDOWS_AMD64),$(EXECUTABLE)_$(VERSION)_windows_amd64.zip,$(EXECUTABLE).exe)
+	$(call ZIP_FILE,$(WINDOWS_ARM64),$(EXECUTABLE)_$(VERSION)_windows_arm64.zip,$(EXECUTABLE).exe)
+	$(call ZIP_FILE,$(LINUX_AMD64),$(EXECUTABLE)_$(VERSION)_linux_amd64.zip,$(EXECUTABLE))
+	$(call ZIP_FILE,$(LINUX_ARM64),$(EXECUTABLE)_$(VERSION)_linux_arm64.zip,$(EXECUTABLE))
+	$(call ZIP_FILE,$(DARWIN_AMD64),$(EXECUTABLE)_$(VERSION)_macos_amd64.zip,$(EXECUTABLE))
+	$(call ZIP_FILE,$(DARWIN_ARM64),$(EXECUTABLE)_$(VERSION)_macos_arm64.zip,$(EXECUTABLE))
 
 clean:
 	$(RM)
