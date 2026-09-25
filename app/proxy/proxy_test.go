@@ -553,8 +553,8 @@ func TestForwardProxy_SetRules_Wildcard(t *testing.T) {
 	fp := newTestForwardProxy()
 
 	rules := map[string]*models.ProxyRule{
-		"exact.test":    {Hostname: "exact.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true},
-		"*.wc.test":     {Hostname: "*.wc.test", BackendProtocol: "http", BackendPort: 4000, Enabled: true},
+		"exact.test": {Hostname: "exact.test", BackendProtocol: "http", BackendPort: 3000, Enabled: true},
+		"*.wc.test":  {Hostname: "*.wc.test", BackendProtocol: "http", BackendPort: 4000, Enabled: true},
 	}
 	fp.SetRules(rules)
 

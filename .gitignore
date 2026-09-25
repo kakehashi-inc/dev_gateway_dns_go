@@ -29,13 +29,21 @@ setting*.yaml
 *.swp
 
 # Etc
-*.db
-*.db-shm
-*.db-wal
+*.yaml
+!*.example.yaml
 tmp/
 bin/
+release/
 *.exe
 __debug_bin*
 .env
 .env.*
 !.env.example
+*.db
+*.db-shm
+*.db-wal
+
+# dev_gateway_dns runtime data (created next to the executable) and dev binary
+/data/
+/dev_gateway_dns
+/dev_gateway_dns_*

@@ -95,10 +95,10 @@ INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES ('log_level', '"i
 
 // testEnv holds all dependencies needed for the API server tests.
 type testEnv struct {
-	db       *sql.DB
-	server   *Server
-	baseURL  string
-	client   *http.Client
+	db        *sql.DB
+	server    *Server
+	baseURL   string
+	client    *http.Client
 	adminPort int
 }
 

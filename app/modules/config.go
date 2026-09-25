@@ -9,27 +9,27 @@ import (
 
 // DefaultSettings defines the default configuration values.
 var DefaultSettings = map[string]string{
-	"http_port":              "80",
-	"https_port":             "443",
-	"dns_port":               "53",
-	"proxy_port":             "8888",
-	"admin_port":             "9090",
-	"listen_addresses":       `["0.0.0.0"]`,
-	"upstream_dns_fallback":  `["8.8.8.8","1.1.1.1"]`,
+	"http_port":                 "80",
+	"https_port":                "443",
+	"dns_port":                  "53",
+	"proxy_port":                "8888",
+	"admin_port":                "9090",
+	"listen_addresses":          `["0.0.0.0"]`,
+	"upstream_dns_fallback":     `["8.8.8.8","1.1.1.1"]`,
 	"dns_query_history_size":    "1000",
-	"log_level":                `"info"`,
+	"log_level":                 `"info"`,
 	"access_log_retention_days": "7",
 }
 
 // AppConfig holds the runtime configuration loaded from the database.
 type AppConfig struct {
-	HTTPPort            int      `json:"http_port"`
-	HTTPSPort           int      `json:"https_port"`
-	DNSPort             int      `json:"dns_port"`
-	ProxyPort           int      `json:"proxy_port"`
-	AdminPort           int      `json:"admin_port"`
-	ListenAddresses     []string `json:"listen_addresses"`
-	UpstreamDNSFallback []string `json:"upstream_dns_fallback"`
+	HTTPPort               int      `json:"http_port"`
+	HTTPSPort              int      `json:"https_port"`
+	DNSPort                int      `json:"dns_port"`
+	ProxyPort              int      `json:"proxy_port"`
+	AdminPort              int      `json:"admin_port"`
+	ListenAddresses        []string `json:"listen_addresses"`
+	UpstreamDNSFallback    []string `json:"upstream_dns_fallback"`
 	DNSQueryHistorySize    int      `json:"dns_query_history_size"`
 	LogLevel               string   `json:"log_level"`
 	AccessLogRetentionDays int      `json:"access_log_retention_days"`
@@ -39,13 +39,13 @@ type AppConfig struct {
 // NewDefaultConfig returns a config with default values.
 func NewDefaultConfig() *AppConfig {
 	return &AppConfig{
-		HTTPPort:            80,
-		HTTPSPort:           443,
-		DNSPort:             53,
-		ProxyPort:           8888,
-		AdminPort:           9090,
-		ListenAddresses:     []string{"0.0.0.0"},
-		UpstreamDNSFallback: []string{"8.8.8.8", "1.1.1.1"},
+		HTTPPort:               80,
+		HTTPSPort:              443,
+		DNSPort:                53,
+		ProxyPort:              8888,
+		AdminPort:              9090,
+		ListenAddresses:        []string{"0.0.0.0"},
+		UpstreamDNSFallback:    []string{"8.8.8.8", "1.1.1.1"},
 		DNSQueryHistorySize:    1000,
 		LogLevel:               "info",
 		AccessLogRetentionDays: 7,
@@ -122,15 +122,15 @@ func SaveConfigToDB(db *sql.DB, cfg *AppConfig) error {
 	logLevelJSON, _ := json.Marshal(cfg.LogLevel)
 
 	settings := map[string]string{
-		"http_port":              fmt.Sprintf("%d", cfg.HTTPPort),
-		"https_port":             fmt.Sprintf("%d", cfg.HTTPSPort),
-		"dns_port":               fmt.Sprintf("%d", cfg.DNSPort),
-		"proxy_port":             fmt.Sprintf("%d", cfg.ProxyPort),
-		"admin_port":             fmt.Sprintf("%d", cfg.AdminPort),
-		"listen_addresses":       string(listenJSON),
-		"upstream_dns_fallback":  string(upstreamJSON),
+		"http_port":                 fmt.Sprintf("%d", cfg.HTTPPort),
+		"https_port":                fmt.Sprintf("%d", cfg.HTTPSPort),
+		"dns_port":                  fmt.Sprintf("%d", cfg.DNSPort),
+		"proxy_port":                fmt.Sprintf("%d", cfg.ProxyPort),
+		"admin_port":                fmt.Sprintf("%d", cfg.AdminPort),
+		"listen_addresses":          string(listenJSON),
+		"upstream_dns_fallback":     string(upstreamJSON),
 		"dns_query_history_size":    fmt.Sprintf("%d", cfg.DNSQueryHistorySize),
-		"log_level":                string(logLevelJSON),
+		"log_level":                 string(logLevelJSON),
 		"access_log_retention_days": fmt.Sprintf("%d", cfg.AccessLogRetentionDays),
 	}
 
