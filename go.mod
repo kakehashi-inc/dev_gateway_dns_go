@@ -1,6 +1,6 @@
 module dev_gateway_dns
 
-go 1.26
+go 1.27.3
 
 require (
 	codeberg.org/miekg/dns v0.6.84
